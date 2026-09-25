@@ -1,6 +1,7 @@
 // ============================================
 // BetNova — Aviator Client
 // Smooth 60fps curve · Smooth plane motion · Provably fair
+// Synth audio (Web Audio API) — no sound files required
 // ============================================
 
 const API_BASE = (() => {
@@ -56,8 +57,6 @@ function resizeCanvas() {
     canvas.height = H * DPR;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(DPR, DPR);
-
-    // Redraw current frame at new size
     render(displayMultiplier, isCrashed);
 }
 window.addEventListener('resize', resizeCanvas);
@@ -66,41 +65,187 @@ window.addEventListener('orientationchange', () => {
 });
 
 // ============================================
-// SOUND MANAGER
+// SOUND MANAGER — Web Audio synthesis (no files)
+// Sounds: tick · cashout · crash · placeBet · engine
 // ============================================
-const sounds = {
-    cashout: new Audio('/sounds/cashout.mp3'),
-    crash: new Audio('/sounds/crash.mp3'),
-    tick: new Audio('/sounds/tick.mp3'),
-    placeBet: new Audio('/sounds/place-bet.mp3')
-};
-Object.values(sounds).forEach(a => {
-    a.preload = 'auto';
-    a.volume = 0.5;
-});
-let soundEnabled = localStorage.getItem('betnova_sound') !== 'off';
+const SoundKit = (() => {
+    let ctx = null;
+    let soundEnabled = localStorage.getItem('betnova_sound') !== 'off';
+    let unlocked = false;
 
-function playSound(name) {
-    if (!soundEnabled) return;
-    const s = sounds[name];
-    if (!s) return;
-    try {
-        s.currentTime = 0;
-        s.play().catch(() => {});
-    } catch (_) {}
-}
-
-function toggleSound() {
-    soundEnabled = !soundEnabled;
-    localStorage.setItem('betnova_sound', soundEnabled ? 'on' : 'off');
-    const btn = document.getElementById('sound-toggle');
-    if (btn) {
-        btn.innerHTML = soundEnabled
-            ? '<i class="fa-solid fa-volume-high"></i>'
-            : '<i class="fa-solid fa-volume-xmark"></i>';
-        btn.classList.toggle('muted', !soundEnabled);
+    function getCtx() {
+        if (ctx) return ctx;
+        const C = window.AudioContext || window.webkitAudioContext;
+        if (!C) return null;
+        ctx = new C();
+        return ctx;
     }
-}
+
+    function unlock() {
+        if (unlocked) return;
+        const c = getCtx();
+        if (!c) return;
+        if (c.state === 'suspended') c.resume().catch(() => {});
+        unlocked = true;
+        console.log('[Aviator] Audio unlocked');
+    }
+
+    ['click', 'touchstart', 'keydown'].forEach(evt => {
+        document.addEventListener(evt, unlock, { once: true, passive: true });
+    });
+
+    // ---------- Primitive: shaped oscillator tone ----------
+    function tone({ freq, duration, type = 'sine', volume = 0.2, sweepTo = null, attack = 0.01, release = 0.1 }) {
+        if (!soundEnabled) return;
+        const c = getCtx();
+        if (!c) return;
+        if (c.state === 'suspended') c.resume().catch(() => {});
+
+        const now = c.currentTime;
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        if (sweepTo !== null) {
+            osc.frequency.exponentialRampToValueAtTime(Math.max(1, sweepTo), now + duration);
+        }
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(volume, now + attack);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration + release);
+
+        osc.connect(gain).connect(c.destination);
+        osc.start(now);
+        osc.stop(now + duration + release + 0.05);
+    }
+
+    // ---------- Primitive: filtered noise burst (crash) ----------
+    function noise({ duration = 0.6, volume = 0.3, filterFreq = 800, filterSweepTo = 60 }) {
+        if (!soundEnabled) return;
+        const c = getCtx();
+        if (!c) return;
+        if (c.state === 'suspended') c.resume().catch(() => {});
+
+        const now = c.currentTime;
+        const buffer = c.createBuffer(1, Math.max(1, Math.floor(c.sampleRate * duration)), c.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+            data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+        }
+
+        const src = c.createBufferSource();
+        src.buffer = buffer;
+
+        const filter = c.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(filterFreq, now);
+        filter.frequency.exponentialRampToValueAtTime(Math.max(20, filterSweepTo), now + duration);
+
+        const gain = c.createGain();
+        gain.gain.setValueAtTime(volume, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+        src.connect(filter).connect(gain).connect(c.destination);
+        src.start(now);
+        src.stop(now + duration);
+    }
+
+    // ---------- Public: one-shot sounds ----------
+    function play(name) {
+        if (!soundEnabled) return;
+        switch (name) {
+            case 'tick':
+                tone({ freq: 880, duration: 0.06, type: 'square', volume: 0.15 });
+                break;
+
+            case 'cashout':
+                tone({ freq: 1046, duration: 0.08, type: 'triangle', volume: 0.25 });
+                setTimeout(() => tone({ freq: 1568, duration: 0.14, type: 'triangle', volume: 0.25 }), 70);
+                break;
+
+            case 'crash':
+                noise({ duration: 0.7, volume: 0.35, filterFreq: 1200, filterSweepTo: 80 });
+                tone({ freq: 220, duration: 0.5, type: 'sawtooth', volume: 0.18, sweepTo: 40 });
+                break;
+
+            case 'placeBet':
+                tone({ freq: 520, duration: 0.05, type: 'sine', volume: 0.18, sweepTo: 720 });
+                break;
+
+            case 'roundStart':
+                tone({ freq: 440, duration: 0.12, type: 'sine', volume: 0.2, sweepTo: 880 });
+                break;
+        }
+    }
+
+    // ---------- Engine loop (rises with multiplier) ----------
+    let engineOsc = null;
+    let engineGain = null;
+
+    function startEngine() {
+        if (!soundEnabled) return;
+        const c = getCtx();
+        if (!c || engineOsc) return;
+        if (c.state === 'suspended') c.resume().catch(() => {});
+
+        engineOsc = c.createOscillator();
+        engineGain = c.createGain();
+        engineOsc.type = 'sawtooth';
+        engineOsc.frequency.setValueAtTime(80, c.currentTime);
+        engineGain.gain.setValueAtTime(0.0001, c.currentTime);
+        engineGain.gain.linearRampToValueAtTime(0.06, c.currentTime + 0.4);
+
+        const filter = c.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+
+        engineOsc.connect(filter).connect(engineGain).connect(c.destination);
+        engineOsc.start();
+    }
+
+    function setEnginePitch(multiplier) {
+        if (!engineOsc || !ctx) return;
+        const f = Math.min(80 + Math.log(multiplier + 1) * 60, 500);
+        engineOsc.frequency.setTargetAtTime(f, ctx.currentTime, 0.2);
+    }
+
+    function stopEngine() {
+        if (!engineOsc) return;
+        try {
+            engineGain.gain.cancelScheduledValues(ctx.currentTime);
+            engineGain.gain.setValueAtTime(engineGain.gain.value, ctx.currentTime);
+            engineGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
+            engineOsc.stop(ctx.currentTime + 0.2);
+        } catch (_) {}
+        engineOsc = null;
+        engineGain = null;
+    }
+
+    // ---------- Mute toggle ----------
+    function toggle() {
+        soundEnabled = !soundEnabled;
+        localStorage.setItem('betnova_sound', soundEnabled ? 'on' : 'off');
+        if (!soundEnabled) stopEngine();
+        else unlock();
+
+        const btn = document.getElementById('sound-toggle');
+        if (btn) {
+            btn.innerHTML = soundEnabled
+                ? '<i class="fa-solid fa-volume-high"></i>'
+                : '<i class="fa-solid fa-volume-xmark"></i>';
+            btn.classList.toggle('muted', !soundEnabled);
+        }
+    }
+
+    function isEnabled() { return soundEnabled; }
+
+    return { play, startEngine, stopEngine, setEnginePitch, toggle, isEnabled, unlock };
+})();
+
+// Thin wrappers so existing call sites (`playSound('x')`, `toggleSound()`) keep working
+function playSound(name) { SoundKit.play(name); }
+function toggleSound()     { SoundKit.toggle(); }
 
 // ============================================
 // UTILS
@@ -358,8 +503,6 @@ function startAnimation() {
         const deltaMs = now - lastFrameTime;
         lastFrameTime = now;
 
-        // Smoothly interpolate displayMultiplier toward targetMultiplier
-        // Use exponential ease so it catches up fast but never overshoots
         if (lastStatus && lastStatus.status === 'FLYING') {
             const target = lastServerMultiplier;
             const diff = target - displayMultiplier;
@@ -367,19 +510,13 @@ function startAnimation() {
             if (Math.abs(diff) < 0.005) {
                 displayMultiplier = target;
             } else {
-                // Ease toward target at roughly 30% of remaining gap per frame
-                // This makes the multiplier roll smoothly instead of jumping
                 displayMultiplier += diff * Math.min(1, deltaMs / 100);
             }
         } else if (lastStatus && lastStatus.status === 'CRASHED' && crashedMultiplier !== null) {
-            // Snap to crash point
             displayMultiplier = crashedMultiplier;
         }
 
-        // Update the DOM multiplier
         updateMultiplierDisplay();
-
-        // Render the canvas
         render(displayMultiplier, isCrashed);
 
         animationFrameId = requestAnimationFrame(frame);
@@ -401,7 +538,6 @@ function updateMultiplierDisplay() {
     if (!lastStatus) return;
 
     if (lastStatus.status === 'WAITING') {
-        // Already set by tick handler
         return;
     }
 
@@ -451,6 +587,11 @@ socket.on('betnova_tick', (state) => {
         crashedMultiplier = null;
         isCrashed = false;
 
+        // Reset tick tracker for the new round
+        if (state.timer === 5 || state.timer === 4) {
+            lastTimerTick = null;
+        }
+
         const multiplierEl = document.getElementById('multiplier');
         if (multiplierEl) {
             multiplierEl.innerHTML = `${state.timer}<span>s</span>`;
@@ -460,10 +601,16 @@ socket.on('betnova_tick', (state) => {
         if (statusBadge) statusBadge.innerText = 'Waiting for next round...';
         clearCanvas();
 
-        if (state.timer !== lastTimerTick && state.timer >= 0 && state.timer <= 3) {
+        // ✅ Fire tick ONLY on descending 3 → 2 → 1 (server emits each tick twice)
+        if (
+            state.timer >= 0 &&
+            state.timer <= 3 &&
+            lastTimerTick !== null &&
+            state.timer < lastTimerTick
+        ) {
             playSound('tick');
-            lastTimerTick = state.timer;
         }
+        lastTimerTick = state.timer;
     }
 
     // ---------- FLYING ----------
@@ -471,14 +618,18 @@ socket.on('betnova_tick', (state) => {
         if (!flightStartTime) {
             flightStartTime = Date.now();
             displayMultiplier = 1.00;
+            // ✅ Start engine loop the moment flight begins
+            SoundKit.startEngine();
         }
 
         lastServerMultiplier = state.multiplier;
         isCrashed = false;
 
+        // ✅ Engine pitch rises with multiplier
+        SoundKit.setEnginePitch(state.multiplier);
+
         if (statusBadge) statusBadge.innerText = 'In flight — cash out before crash';
 
-        // Auto-cashout check against server multiplier (authoritative)
         [1, 2].forEach(panel => {
             const bet = myBets[panel];
             if (bet && !bet.cashedOut) {
@@ -493,6 +644,11 @@ socket.on('betnova_tick', (state) => {
 
     // ---------- CRASHED ----------
     else if (state.status === 'CRASHED') {
+        // ✅ Kill engine FIRST so crash sound isn't layered over the hum
+        SoundKit.stopEngine();
+        // ✅ Crash sound for everyone (observer or bettor)
+        SoundKit.play('crash');
+
         crashedMultiplier = state.multiplier;
         lastServerMultiplier = state.multiplier;
         displayMultiplier = state.multiplier;
@@ -539,7 +695,8 @@ socket.on('bet_cashed', ({ payout, multiplier, panel, auto }) => {
 });
 
 socket.on('bet_lost', ({ amount, panel }) => {
-    playSound('crash');
+    // ✅ No playSound('crash') here — CRASHED state already fired it globally.
+    // Playing it again would double the sound for the bettor.
     showToast(`Lost KES ${formatKES(amount)}`, 'error');
     myBets[panel] = null;
     updateActionButton(panel);
@@ -612,6 +769,8 @@ socket.on('crash_history', (history) => {
 // ============================================
 socket.on('round_commit', (data) => {
     currentCommit = data;
+    // ✅ Reset tick tracker for the new round
+    lastTimerTick = null;
 
     const roundEl = document.getElementById('pf-round');
     const hashEl = document.getElementById('pf-hash');
@@ -944,12 +1103,8 @@ function render(multiplier, crashed) {
     // ---------- Curve math ----------
     const safeMul = Math.max(1.001, multiplier);
 
-    // X progress: how far across the canvas we are (based on log of multiplier)
-    // At 1.00x → 0, at 2x → ~0.42, at 10x → ~0.68, at 100x → ~0.87
     const progress = Math.min(0.97, Math.log(safeMul) / Math.log(1000) + (safeMul - 1) * 0.03);
 
-    // Y height: how high the curve has climbed (non-linear, accelerates)
-    // Felt factor makes the curve rise more dramatically as multiplier grows
     const heightFactor = Math.min(0.97,
         1 - Math.exp(-(safeMul - 1) * 0.35) + (safeMul - 1) * 0.008);
 
@@ -959,11 +1114,9 @@ function render(multiplier, crashed) {
     for (let i = 0; i <= STEPS; i++) {
         const t = i / STEPS;
 
-        // Position along the curve (0 to progress)
         const tt = t * progress;
         const x = startX + spanX * tt;
 
-        // Y climbs exponentially: steeper as t increases
         const yProgress = Math.pow(t, 1.4) * heightFactor;
         const y = startY - spanY * yProgress;
 
@@ -1047,7 +1200,6 @@ function render(multiplier, crashed) {
         ctx.shadowBlur = 18;
         ctx.shadowColor = 'rgba(217, 29, 54, 0.9)';
 
-        // Body
         ctx.beginPath();
         ctx.moveTo(20, 0);
         ctx.lineTo(-9, -10);
@@ -1056,7 +1208,6 @@ function render(multiplier, crashed) {
         ctx.closePath();
         ctx.fill();
 
-        // Top wing
         ctx.beginPath();
         ctx.moveTo(3, -3);
         ctx.lineTo(-6, -18);
@@ -1064,7 +1215,6 @@ function render(multiplier, crashed) {
         ctx.closePath();
         ctx.fill();
 
-        // Bottom wing
         ctx.beginPath();
         ctx.moveTo(3, 3);
         ctx.lineTo(-6, 18);
@@ -1085,12 +1235,14 @@ document.addEventListener('DOMContentLoaded', () => {
     checkSession();
     startAnimation();
 
+    // Sync sound toggle UI with persisted state
     const btn = document.getElementById('sound-toggle');
     if (btn) {
-        btn.innerHTML = soundEnabled
+        const enabled = SoundKit.isEnabled();
+        btn.innerHTML = enabled
             ? '<i class="fa-solid fa-volume-high"></i>'
             : '<i class="fa-solid fa-volume-xmark"></i>';
-        btn.classList.toggle('muted', !soundEnabled);
+        btn.classList.toggle('muted', !enabled);
     }
 
     setInterval(refreshBalance, 15000);
@@ -1106,4 +1258,5 @@ document.addEventListener('DOMContentLoaded', () => {
 // Cleanup on unload
 window.addEventListener('beforeunload', () => {
     stopAnimation();
+    SoundKit.stopEngine();
 });
