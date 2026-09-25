@@ -87,7 +87,7 @@ if (process.env.NODE_ENV === 'production') {
     // Serve the exact file for each route
     const pageRoutes = [
         { path: '/aviator', file: 'aviator/index.html' },
-        { path: '/crash', file: 'index.html' },
+        { path: '/crash', file: 'crash/index.html' },
         { path: '/soccer', file: 'sports/index.html' },      // ← renamed from /sports
         { path: '/cashier', file: 'cashier/index.html' },
         { path: '/promotions', file: 'promotions/index.html' },
