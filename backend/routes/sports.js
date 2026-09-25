@@ -1,6 +1,6 @@
 // ============================================
 // BetNova — Sports Betting API
-// Grouped matches, priority leagues, date filters
+// Time-based filters, live matches, grouped responses
 // ============================================
 
 const express = require('express');
@@ -20,7 +20,6 @@ function safeFixed(n, decimals = 2) {
 
 /**
  * Get priority ordering for sport keys
- * Uses PRIORITY_LEAGUES from oddsProvider
  */
 function getPriorityMap() {
     try {
@@ -32,37 +31,6 @@ function getPriorityMap() {
         return map;
     } catch (_) {
         return {};
-    }
-}
-
-/**
- * Parse date range query param into { start, end }
- */
-function parseDateRange(range) {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    switch (range) {
-        case 'today': {
-            const end = new Date(today);
-            end.setDate(end.getDate() + 1);
-            return { start: today, end };
-        }
-        case 'tomorrow': {
-            const start = new Date(today);
-            start.setDate(start.getDate() + 1);
-            const end = new Date(start);
-            end.setDate(end.getDate() + 1);
-            return { start, end };
-        }
-        case 'week': {
-            const end = new Date(today);
-            end.setDate(end.getDate() + 7);
-            return { start: today, end };
-        }
-        case 'all':
-        default:
-            return null;
     }
 }
 
@@ -84,21 +52,25 @@ router.get('/', async (req, res) => {
 
 // ============================================
 // GET /api/sports/matches
-// Grouped by league, priority-ordered
+// Time-based filters (from/to ISO OR range)
 // Query params:
-//   - sport=soccer_epl         (single league)
-//   - group=Soccer             (whole sport group)
-//   - range=today|tomorrow|week|all
-//   - search=arsenal           (team name search)
-//   - status=upcoming|live|finished
-//   - limit=200
-//   - format=grouped|flat      (default: grouped)
+//   - sport=soccer_epl               (single league)
+//   - group=Soccer                   (whole sport group)
+//   - from=2026-09-26T00:00:00.000Z  (ISO — client-side date lower bound)
+//   - to=2026-09-27T00:00:00.000Z    (ISO — client-side date upper bound)
+//   - range=today|tomorrow|week|all  (fallback for no from/to)
+//   - search=arsenal                 (team name search)
+//   - status=upcoming|live|finished  (or 'all' to skip)
+//   - limit=300
+//   - format=grouped|flat            (default: grouped)
 // ============================================
 router.get('/matches', async (req, res) => {
     try {
         const {
             sport,
             group,
+            from,
+            to,
             range = 'all',
             search,
             status = 'upcoming',
@@ -111,15 +83,40 @@ router.get('/matches', async (req, res) => {
 
         if (sport) filter.sportKey = sport;
         if (group) filter.sportGroup = group;
-        if (status) filter.status = status;
 
-        // Date range
-        const dateRange = parseDateRange(range);
-        if (dateRange) {
-            filter.commenceTime = { $gte: dateRange.start, $lt: dateRange.end };
+        // ---------- Time-based filtering ----------
+        const now = new Date();
+        const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
+        if (status === 'live') {
+            // Matches that started within the last 3 hours
+            filter.commenceTime = {
+                $lte: now,
+                $gte: threeHoursAgo
+            };
+        } else if (status === 'upcoming') {
+            // Matches starting in the future
+            filter.commenceTime = { $gt: now };
+
+            // Client-supplied ISO window takes precedence
+            if (from || to) {
+                if (from) filter.commenceTime.$gte = new Date(from);
+                if (to) filter.commenceTime.$lt = new Date(to);
+            } else if (range && range !== 'all') {
+                // Fallback to server-side range computation
+                const rangeBounds = computeRangeBounds(range);
+                if (rangeBounds) {
+                    filter.commenceTime.$gte = rangeBounds.start;
+                    filter.commenceTime.$lt = rangeBounds.end;
+                }
+            }
+        } else if (status === 'finished') {
+            filter.commenceTime = { $lt: now };
+        } else {
+            // status === 'all' or unrecognized — no time filter
         }
 
-        // Team search (case-insensitive)
+        // ---------- Team search ----------
         if (search && search.trim().length >= 2) {
             const regex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
             filter.$or = [
@@ -177,6 +174,37 @@ router.get('/matches', async (req, res) => {
     }
 });
 
+/**
+ * Fallback server-side range computation.
+ * Only used when client doesn't send from/to ISO params.
+ */
+function computeRangeBounds(range) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (range) {
+        case 'today': {
+            const end = new Date(today);
+            end.setDate(end.getDate() + 1);
+            return { start: today, end };
+        }
+        case 'tomorrow': {
+            const start = new Date(today);
+            start.setDate(start.getDate() + 1);
+            const end = new Date(start);
+            end.setDate(end.getDate() + 1);
+            return { start, end };
+        }
+        case 'week': {
+            const end = new Date(today);
+            end.setDate(end.getDate() + 7);
+            return { start: today, end };
+        }
+        default:
+            return null;
+    }
+}
+
 // ============================================
 // GET /api/sports/leagues
 // Returns distinct leagues with match counts
@@ -184,9 +212,16 @@ router.get('/matches', async (req, res) => {
 router.get('/leagues', async (req, res) => {
     try {
         const priorityMap = getPriorityMap();
+        const now = new Date();
 
+        // Only count upcoming matches (commenceTime in future)
         const leagues = await Match.aggregate([
-            { $match: { isActive: true, status: 'upcoming' } },
+            {
+                $match: {
+                    isActive: true,
+                    commenceTime: { $gt: now }
+                }
+            },
             {
                 $group: {
                     _id: '$sportKey',
@@ -257,7 +292,7 @@ router.post('/bets', async (req, res) => {
             return res.status(403).json({ error: 'You are self-excluded from betting.' });
         }
 
-        // ---------- Check for duplicate matches in selections ----------
+        // ---------- Check for duplicate matches ----------
         const matchIds = selections.map(s => s.matchExternalId);
         const uniqueIds = new Set(matchIds);
         if (uniqueIds.size !== matchIds.length) {
@@ -272,11 +307,6 @@ router.post('/bets', async (req, res) => {
             const match = await Match.findOne({ externalId: sel.matchExternalId });
             if (!match) {
                 return res.status(400).json({ error: `Match ${sel.matchExternalId} not found.` });
-            }
-            if (match.status !== 'upcoming') {
-                return res.status(400).json({
-                    error: `Match ${match.homeTeam} vs ${match.awayTeam} is not open for betting.`
-                });
             }
             if (new Date(match.commenceTime) <= new Date()) {
                 return res.status(400).json({
@@ -312,9 +342,9 @@ router.post('/bets', async (req, res) => {
         }
 
         // ---------- Compute payout ----------
-        // totalOdds is the product of all selection odds
+        // totalOdds = product of all selection odds
         // Example: 1.20 × 10.30 = 12.36 (NOT 11.50)
-        if (totalOdds > 10000) totalOdds = 10000; // cap abuse
+        if (totalOdds > 10000) totalOdds = 10000;
         totalOdds = safeFixed(totalOdds);
         const potentialPayout = safeFixed(amt * totalOdds);
 
@@ -374,7 +404,6 @@ router.post('/bets', async (req, res) => {
 
 // ============================================
 // GET /api/sports/bets/:userId
-// Query: ?status=pending|won|lost&limit=50
 // ============================================
 router.get('/bets/:userId', async (req, res) => {
     try {
@@ -387,7 +416,6 @@ router.get('/bets/:userId', async (req, res) => {
             .limit(Math.min(parseInt(limit) || 100, 200))
             .lean();
 
-        // Compute summary stats
         const stats = {
             totalBets: bets.length,
             pending: bets.filter(b => b.status === 'pending').length,
@@ -422,16 +450,25 @@ router.get('/bets/single/:betId', async (req, res) => {
 // ============================================
 router.get('/stats', async (req, res) => {
     try {
-        const [matchCount, leagueCount, upcomingCount] = await Promise.all([
+        const now = new Date();
+        const [matchCount, leagueCount, upcomingCount, liveCount] = await Promise.all([
             Match.countDocuments({ isActive: true }),
             Match.distinct('sportKey', { isActive: true }).then(arr => arr.length),
-            Match.countDocuments({ isActive: true, status: 'upcoming' })
+            Match.countDocuments({ isActive: true, commenceTime: { $gt: now } }),
+            Match.countDocuments({
+                isActive: true,
+                commenceTime: {
+                    $lte: now,
+                    $gte: new Date(now.getTime() - 3 * 60 * 60 * 1000)
+                }
+            })
         ]);
 
         res.json({
             totalMatches: matchCount,
             activeLeagues: leagueCount,
-            upcomingMatches: upcomingCount
+            upcomingMatches: upcomingCount,
+            liveMatches: liveCount
         });
     } catch (err) {
         res.status(500).json({ error: 'Failed to load stats.' });
@@ -439,7 +476,7 @@ router.get('/stats', async (req, res) => {
 });
 
 // ============================================
-// POST /api/sports/admin/refresh — force refresh (admin)
+// POST /api/sports/admin/refresh — force refresh
 // ============================================
 router.post('/admin/refresh', async (req, res) => {
     try {
@@ -457,8 +494,7 @@ router.post('/admin/refresh', async (req, res) => {
 });
 
 // ============================================
-// POST /api/sports/admin/refresh-one — refresh single league
-// Body: { sportKey }
+// POST /api/sports/admin/refresh-one
 // ============================================
 router.post('/admin/refresh-one', async (req, res) => {
     try {
@@ -475,6 +511,53 @@ router.post('/admin/refresh-one', async (req, res) => {
     } catch (err) {
         console.error('Refresh-one error:', err);
         res.status(500).json({ error: 'Refresh failed.' });
+    }
+});
+
+// ============================================
+// POST /api/sports/admin/reset-statuses
+// Utility to recompute DB `status` field from commenceTime
+// ============================================
+router.post('/admin/reset-statuses', async (req, res) => {
+    try {
+        const adminToken = req.headers['x-admin-token'];
+        if (!adminToken || adminToken !== process.env.ADMIN_TOKEN) {
+            return res.status(403).json({ error: 'Unauthorized.' });
+        }
+
+        const now = new Date();
+        const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
+        const upcoming = await Match.updateMany(
+            { commenceTime: { $gt: now }, status: { $ne: 'upcoming' } },
+            { $set: { status: 'upcoming' } }
+        );
+
+        const live = await Match.updateMany(
+            {
+                commenceTime: { $lte: now, $gte: threeHoursAgo },
+                status: { $ne: 'live' }
+            },
+            { $set: { status: 'live' } }
+        );
+
+        const finished = await Match.updateMany(
+            {
+                commenceTime: { $lt: threeHoursAgo },
+                status: { $nin: ['finished', 'cancelled'] }
+            },
+            { $set: { status: 'finished' } }
+        );
+
+        res.json({
+            message: 'Statuses reset.',
+            upcoming: upcoming.modifiedCount,
+            live: live.modifiedCount,
+            finished: finished.modifiedCount
+        });
+    } catch (err) {
+        console.error('Reset statuses error:', err);
+        res.status(500).json({ error: 'Reset failed.' });
     }
 });
 
