@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetNova - Premium Crash Experience</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-[#0f111a] text-white font-sans min-h-screen flex flex-col justify-between">
+
+    <!-- Header Navbar Component -->
+    <header class="bg-[#161926] border-b border-[#24293e] px-6 py-4 flex justify-between items-center shadow-lg">
+        <h1 class="text-2xl font-black tracking-wider text-red-500 uppercase">Bet<span class="text-white">Nova</span></h1>
+        <div id="auth-zone" class="flex gap-3">
+            <button onclick="openModal('signin-modal')" class="px-5 py-2 bg-[#222538] hover:bg-[#2d314a] rounded-lg font-medium transition">Sign In</button>
+            <button onclick="openModal('signup-modal')" class="px-5 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold transition shadow-lg shadow-red-600/20">Sign Up</button>
+        </div>
+        <div id="user-zone" class="hidden items-center gap-4">
+            <div class="bg-[#1e2235] px-4 py-2 rounded-lg border border-[#2d314a]">
+                <span class="text-xs text-gray-400 block uppercase font-bold tracking-tight">Wallet Balance</span>
+                <span id="balance-display" class="text-green-400 font-extrabold text-sm">$0.00</span>
+            </div>
+            <span id="user-display" class="font-bold text-gray-200">User</span>
+            <button onclick="handleLogout()" class="text-xs text-gray-400 hover:text-red-400 underline">Logout</button>
+        </div>
+    </header>
+
+    <!-- Main Dynamic Application Segment -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Interactive Multiplier Monitor & Graphic Canvas Frame -->
+        <div class="lg:col-span-2 flex flex-col gap-4">
+            <div class="relative bg-[#161926] border border-[#24293e] rounded-2xl h-80 flex flex-col items-center justify-center overflow-hidden shadow-2xl">
+
+                <!-- Gated Guard Overlay -->
+                <div id="game-lock" class="absolute inset-0 bg-[#0f111a]/95 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
+                    <div class="bg-red-500/10 border border-red-500/20 p-4 rounded-full mb-3 text-red-500">🔒</div>
+                    <h3 class="text-lg font-bold">Access Restricted</h3>
+                    <p class="text-sm text-gray-400 max-w-xs mt-1">Authenticate your student account profile to unlock dynamic flight metrics.</p>
+                </div>
+
+                <!-- Live Multiplier Display -->
+                <div class="absolute top-8 text-center z-10 pointer-events-none">
+                    <h2 id="multiplier-text" class="text-5xl md:text-6xl font-black tracking-tight text-white transition-all duration-75">1.00x</h2>
+                    <p id="status-text" class="text-xs text-gray-500 uppercase tracking-widest mt-1">Awaiting round</p>
+                </div>
+
+                <canvas id="flight-canvas" class="w-full h-full block"></canvas>
+            </div>
+
+            <!-- Betting Setup Layout Box -->
+            <div class="relative bg-[#161926] border border-[#24293e] p-6 rounded-2xl grid grid-cols-1 md:grid-cols-3 gap-4 shadow-xl">
+                <div id="bet-lock" class="absolute inset-0 bg-[#0f111a]/90 backdrop-blur-sm z-40 flex items-center justify-center rounded-2xl">
+                    <p class="text-sm font-medium text-gray-400">Sign in to unlock interactive bet configurations.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase font-bold text-gray-400 mb-2 tracking-wider">Bet Amount ($)</label>
+                    <input type="number" id="bet-input" value="10.00" min="1" step="1" class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-red-500 transition text-white">
+                </div>
+
+                <div class="flex items-end">
+                    <button id="place-bet-btn" class="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-bold transition shadow-lg shadow-green-600/20">
+                        Place Bet
+                    </button>
+                </div>
+
+                <div class="flex items-end">
+                    <button id="cashout-btn" disabled class="w-full px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-bold transition shadow-lg shadow-amber-500/20">
+                        Cash Out
+                    </button>
+                </div>
+
+                <div class="md:col-span-3 text-xs text-gray-400 flex justify-between pt-2 border-t border-[#24293e]">
+                    <span>Active Players: <span id="active-count" class="text-white font-bold">0</span></span>
+                    <span id="bet-status" class="text-gray-500">No active bet</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Network Feed -->
+        <aside class="bg-[#161926] border border-[#24293e] rounded-2xl p-4 shadow-2xl flex flex-col max-h-[600px]">
+            <h3 class="text-sm uppercase font-bold tracking-wider text-gray-300 mb-3 border-b border-[#24293e] pb-2">Live Network Feed</h3>
+
+            <div class="mb-3">
+                <p class="text-xs uppercase font-bold text-gray-500 mb-1">Recent Crashes</p>
+                <div id="crash-history" class="flex flex-wrap gap-1">
+                    <span class="text-xs text-gray-500">— no data —</span>
+                </div>
+            </div>
+
+            <div id="feed-container" class="flex-1 overflow-y-auto space-y-1 pr-1 text-xs">
+                <div class="p-2 bg-[#1e2235] rounded border border-[#2d314a] text-gray-300">
+                    ⚡ Awaiting backend synchronization...
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <footer class="text-center text-xs text-gray-600 py-4 border-t border-[#24293e]">
+        © 2026 BetNova Academic Project Layer System. All rights reserved.
+    </footer>
+
+    <!-- Sign In Modal -->
+    <div id="signin-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-[#161926] border border-[#24293e] rounded-2xl w-full max-w-sm p-6 relative shadow-2xl">
+            <button onclick="closeModal('signin-modal')" class="absolute top-3 right-4 text-gray-500 hover:text-white text-xl">×</button>
+            <h2 class="text-xl font-black mb-1">Sign In</h2>
+            <p class="text-xs text-gray-400 mb-4">Authenticate Account</p>
+            <form onsubmit="handleAuth(event, 'signin')" class="space-y-3">
+                <input id="signin-user" type="text" placeholder="Username" required class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500">
+                <input id="signin-pass" type="password" placeholder="Password" required class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500">
+                <button type="submit" class="w-full py-3 bg-red-600 hover:bg-red-700 rounded-xl font-bold transition">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sign Up Modal -->
+    <div id="signup-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-[#161926] border border-[#24293e] rounded-2xl w-full max-w-sm p-6 relative shadow-2xl">
+            <button onclick="closeModal('signup-modal')" class="absolute top-3 right-4 text-gray-500 hover:text-white text-xl">×</button>
+            <h2 class="text-xl font-black mb-1">Create Student Account</h2>
+            <p class="text-xs text-gray-400 mb-4">Register Profile</p>
+            <form onsubmit="handleAuth(event, 'signup')" class="space-y-3">
+                <input id="signup-user" type="text" placeholder="Username" required class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500">
+                <input id="signup-pass" type="password" placeholder="Password" required class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500">
+                <button type="submit" class="w-full py-3 bg-red-600 hover:bg-red-700 rounded-xl font-bold transition">Register Profile</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
