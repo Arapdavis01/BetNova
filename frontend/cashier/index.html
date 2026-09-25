@@ -7,20 +7,41 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="cashier.css">
+    <link rel="stylesheet" href="/cashier/cashier.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <header class="csh-header">
     <div class="csh-header-inner">
-        <a href="/" class="csh-back">
-            <i class="fa-solid fa-arrow-left"></i>
-            <span class="csh-logo">
-                <span class="csh-logo-red">Bet</span><span class="csh-logo-white">Nova</span>
-                <span class="csh-logo-sub">Cashier</span>
-            </span>
-        </a>
+        <div class="csh-header-left">
+            <a href="/" class="csh-back" title="Back to Home">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span class="csh-logo">
+                    <span class="csh-logo-red">Bet</span><span class="csh-logo-white">Nova</span>
+                    <span class="csh-logo-sub">Cashier</span>
+                </span>
+            </a>
+
+            <nav class="csh-quick-nav">
+                <a href="/" title="Home" aria-label="Home">
+                    <i class="fa-solid fa-house"></i>
+                </a>
+                <a href="/sports" title="Sports" aria-label="Sports">
+                    <i class="fa-solid fa-futbol"></i>
+                </a>
+                <a href="/aviator" title="Aviator" aria-label="Aviator">
+                    <i class="fa-solid fa-plane-up"></i>
+                </a>
+                <a href="/crash" title="Crash" aria-label="Crash">
+                    <i class="fa-solid fa-chart-line"></i>
+                </a>
+                <a href="/promotions" title="Promotions" aria-label="Promotions">
+                    <i class="fa-solid fa-gift"></i>
+                </a>
+            </nav>
+        </div>
+
         <div class="csh-header-right">
             <div class="csh-balance-chip">
                 <i class="fa-solid fa-wallet"></i>
@@ -235,12 +256,49 @@
             </button>
             <p class="csh-streak-hint">Consecutive days give bigger bonuses</p>
         </div>
+
+        <div class="csh-side-card">
+            <h4>Need Help?</h4>
+            <a href="/cashier#history" class="csh-side-action">
+                <i class="fa-solid fa-receipt"></i> View Transactions
+            </a>
+            <a href="/promotions" class="csh-side-action">
+                <i class="fa-solid fa-gift"></i> Promotions
+            </a>
+            <a href="/" class="csh-side-action">
+                <i class="fa-solid fa-house"></i> Back to Home
+            </a>
+        </div>
     </aside>
 </main>
+
+<!-- Mobile bottom nav -->
+<nav class="csh-bottom-nav">
+    <a href="/" class="csh-bottom-item">
+        <i class="fa-solid fa-house"></i>
+        <span>Home</span>
+    </a>
+    <a href="/sports" class="csh-bottom-item">
+        <i class="fa-solid fa-futbol"></i>
+        <span>Sports</span>
+    </a>
+    <a href="/aviator" class="csh-bottom-item">
+        <i class="fa-solid fa-plane-up"></i>
+        <span>Aviator</span>
+    </a>
+    <a href="/cashier" class="csh-bottom-item active">
+        <i class="fa-solid fa-wallet"></i>
+        <span>Cashier</span>
+    </a>
+    <a href="/promotions" class="csh-bottom-item">
+        <i class="fa-solid fa-gift"></i>
+        <span>Promos</span>
+    </a>
+</nav>
 
 <!-- Toast -->
 <div id="toast" class="csh-toast hidden"></div>
 
-<script src="cashier.js"></script>
+<script src="/cashier/cashier.js"></script>
 </body>
 </html>
