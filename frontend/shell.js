@@ -1,6 +1,7 @@
 // ============================================
 // BetNova — Shared Shell Logic
 // Loaded on every page that uses the shell layout
+// Includes: session, wallet, referral, KYC, live wins, jackpot ticker
 // ============================================
 
 const API_BASE = (() => {
@@ -24,6 +25,7 @@ const socket = io(API_BASE || undefined, {
 // ============================================
 let currentUser = null;
 let currentCategory = 'featured';
+let userSnapshot = null;
 
 // ============================================
 // UTILS
@@ -50,6 +52,18 @@ function showToast(msg, type = 'info', duration = 3000) {
     t.classList.remove('hidden');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.add('hidden'), duration);
+}
+
+// ============================================
+// REFERRAL CODE CAPTURE (from URL ?ref=XXXX)
+// ============================================
+function captureReferralCode() {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref') || params.get('referral');
+    if (ref && typeof ref === 'string' && ref.length > 0 && ref.length <= 20) {
+        localStorage.setItem('betnova_ref', ref.toUpperCase());
+        console.log('[Referral] Captured code:', ref.toUpperCase());
+    }
 }
 
 // ============================================
@@ -140,6 +154,7 @@ function checkSession() {
         socket.emit('chat_join', { username: user });
     } else {
         currentUser = null;
+        userSnapshot = null;
         document.getElementById('shell-auth-zone')?.classList.remove('hidden');
         const userZone = document.getElementById('shell-user-zone');
         userZone?.classList.add('hidden');
@@ -153,22 +168,71 @@ async function refreshBalance() {
         const res = await fetch(`${API_BASE}/api/me/${currentUser.userId}`);
         if (!res.ok) return;
         const data = await res.json();
+        userSnapshot = data;
         localStorage.setItem('betnova_balance', data.balance);
         const balEl = document.getElementById('shell-balance');
         if (balEl) balEl.innerText = formatKES(data.balance);
+
+        // Update UI elements that depend on session state
+        updateSessionUI();
     } catch (_) {}
 }
 
+function updateSessionUI() {
+    if (!userSnapshot) return;
+
+    // Update avatar/name if they exist
+    const avatar = document.getElementById('shell-avatar');
+    if (avatar && userSnapshot.username) {
+        avatar.innerText = userSnapshot.username.charAt(0).toUpperCase();
+    }
+
+    // Profile modal fields (if on a page that has them)
+    const profileName = document.getElementById('profile-name');
+    if (profileName) profileName.innerText = userSnapshot.username || '—';
+
+    const profileBalance = document.getElementById('profile-balance');
+    if (profileBalance) profileBalance.innerText = `KES ${formatKES(userSnapshot.balance)}`;
+
+    const profileBonus = document.getElementById('profile-bonus');
+    if (profileBonus) profileBonus.innerText = `KES ${formatKES(userSnapshot.bonusBalance || 0)}`;
+
+    const profileKyc = document.getElementById('profile-kyc');
+    if (profileKyc) {
+        const levels = ['Unverified', 'Email Verified', 'Email + Phone', 'Full KYC'];
+        profileKyc.innerText = levels[userSnapshot.kycLevel || 0];
+    }
+
+    const referralCodeEl = document.getElementById('user-referral-code');
+    if (referralCodeEl && userSnapshot.referralCode) {
+        referralCodeEl.innerText = userSnapshot.referralCode;
+    }
+}
+
+// ============================================
+// AUTH — SIGN IN / SIGN UP
+// ============================================
 async function handleAuth(event, type) {
     event.preventDefault();
     const username = document.getElementById(`${type}-user`).value.trim();
     const password = document.getElementById(`${type}-pass`).value;
 
     try {
+        // Build request body — include referralCode for signup
+        const body = { username, password };
+
+        if (type === 'signup') {
+            const refCode = localStorage.getItem('betnova_ref');
+            if (refCode) {
+                body.referralCode = refCode;
+                console.log('[Signup] Using referral code:', refCode);
+            }
+        }
+
         const res = await fetch(`${API_BASE}/api/${type}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify(body)
         });
         const data = await res.json();
 
@@ -184,24 +248,48 @@ async function handleAuth(event, type) {
             localStorage.setItem('betnova_balance', data.balance);
             closeModal('signin-modal');
             checkSession();
+
+            // Welcome message varies based on signup bonus history
             showToast(`Welcome back, ${data.username}!`, 'success');
         } else {
-            showToast('Account created. Please sign in.', 'success');
+            // Signup successful — clear referral code so it isn't reused
+            localStorage.removeItem('betnova_ref');
+
+            // Show signup bonus message if applicable
+            if (data.signupBonus && data.signupBonus > 0) {
+                showToast(
+                    `Welcome! You received a KES ${formatKES(data.signupBonus)} signup bonus. Sign in to play!`,
+                    'success',
+                    6000
+                );
+            } else {
+                showToast('Account created. Please sign in.', 'success');
+            }
+
             closeModal('signup-modal');
             openModal('signin-modal');
         }
     } catch (err) {
+        console.error('Auth error:', err);
         showToast('Network error', 'error');
     }
 }
 
 function handleLogout() {
+    // Optional: log the logout via API
+    if (currentUser) {
+        fetch(`${API_BASE}/api/logout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentUser.userId })
+        }).catch(() => {});
+    }
     localStorage.clear();
     location.reload();
 }
 
 // ============================================
-// PAYHERO
+// PAYHERO — DEPOSIT / WITHDRAW
 // ============================================
 async function handleDeposit() {
     if (!currentUser) return showToast('Sign in first', 'error');
@@ -239,21 +327,51 @@ async function handleWithdraw() {
             body: JSON.stringify({ userId: currentUser.userId, amount, phoneNumber: phone })
         });
         const data = await res.json();
-        if (!res.ok) return showToast(data.error || 'Withdrawal failed', 'error');
+
+        if (!res.ok) {
+            // Special handling for KYC gate
+            if (data.code === 'KYC_REQUIRED') {
+                closeModal('withdraw-modal');
+                openModal('kyc-modal');
+                return showToast('Verify your email to withdraw', 'error', 4000);
+            }
+
+            // Special handling for wagering gate
+            if (data.code === 'WAGERING_REQUIRED') {
+                return showToast(data.error, 'error', 5000);
+            }
+
+            return showToast(data.error || 'Withdrawal failed', 'error');
+        }
+
         showToast('Withdrawal sent successfully', 'success', 5000);
         closeModal('withdraw-modal');
+
+        // Refresh balance after a short delay to reflect the deduction
+        setTimeout(refreshBalance, 2000);
     } catch (e) {
         showToast('Network error', 'error');
     }
 }
 
 // ============================================
-// KYC
+// KYC (EMAIL OTP)
 // ============================================
 async function sendOTP() {
     if (!currentUser) return;
     const email = document.getElementById('kyc-email').value.trim();
     if (!email) return showToast('Enter your email', 'error');
+
+    // Basic client-side validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        return showToast('Enter a valid email address', 'error');
+    }
+
+    const btn = event?.target;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Sending...';
+    }
 
     try {
         const res = await fetch(`${API_BASE}/api/kyc/send-otp`, {
@@ -268,6 +386,11 @@ async function sendOTP() {
         document.getElementById('kyc-step-2').classList.remove('hidden');
     } catch (e) {
         showToast('Network error', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Send Code';
+        }
     }
 }
 
@@ -276,6 +399,12 @@ async function verifyOTP() {
     const email = document.getElementById('kyc-email').value.trim();
     const code = document.getElementById('kyc-code').value.trim();
     if (!code || code.length !== 6) return showToast('Enter 6-digit code', 'error');
+
+    const btn = event?.target;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Verifying...';
+    }
 
     try {
         const res = await fetch(`${API_BASE}/api/kyc/verify-otp`, {
@@ -287,8 +416,22 @@ async function verifyOTP() {
         if (!res.ok) return showToast(data.error || 'Invalid code', 'error');
         showToast('Email verified!', 'success');
         closeModal('kyc-modal');
+        refreshBalance();
+
+        // Reset KYC modal steps for next time
+        setTimeout(() => {
+            document.getElementById('kyc-step-1')?.classList.remove('hidden');
+            document.getElementById('kyc-step-2')?.classList.add('hidden');
+            const codeInput = document.getElementById('kyc-code');
+            if (codeInput) codeInput.value = '';
+        }, 500);
     } catch (e) {
         showToast('Network error', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Verify';
+        }
     }
 }
 
@@ -320,20 +463,21 @@ async function saveLimits() {
 }
 
 // ============================================
-// SOCKET — BALANCE
+// SOCKET — BALANCE UPDATE
 // ============================================
 socket.on('balance_update', (balance) => {
     localStorage.setItem('betnova_balance', balance);
     const el = document.getElementById('shell-balance');
     if (el) el.innerText = formatKES(balance);
+
+    // Also update userSnapshot if it exists
+    if (userSnapshot) userSnapshot.balance = balance;
 });
 
 // ============================================
-// SOCKET — LIVE WINS (real events from server)
+// SOCKET — LIVE WINS FEED
 // ============================================
-// The server emits `feed` events whenever a player cashes out.
-// We use those to display recent wins in the live wins section.
-const liveWins = [];       // Rolling window of recent wins
+const liveWins = [];
 const MAX_LIVE_WINS = 8;
 
 socket.on('feed', ({ msg, type }) => {
@@ -398,7 +542,7 @@ function renderLiveWins() {
 }
 
 // ============================================
-// JACKPOT TICKER (server-driven if available, else simulated)
+// JACKPOT TICKER
 // ============================================
 let jackpot = 1247890;
 
@@ -411,7 +555,6 @@ socket.on('jackpot_update', (value) => {
 });
 
 function bumpJackpot() {
-    // Simulated growth — replace with server-driven value when ready
     jackpot += Math.floor(Math.random() * 500);
     const el = document.getElementById('jackpot-amount');
     if (el) el.innerText = jackpot.toLocaleString('en-KE');
@@ -451,7 +594,7 @@ function initCategoryFilter() {
 }
 
 // ============================================
-// SEARCH (optional — only if a search input exists)
+// SEARCH (optional)
 // ============================================
 function initSearch() {
     const input = document.getElementById('shell-search-input');
@@ -470,7 +613,7 @@ function initSearch() {
 }
 
 // ============================================
-// GAME NAV HIGHLIGHT (mark current page in nav)
+// GAME NAV HIGHLIGHT
 // ============================================
 function highlightCurrentPage() {
     const path = window.location.pathname;
@@ -479,7 +622,6 @@ function highlightCurrentPage() {
         const href = link.getAttribute('href');
         if (!href) return;
 
-        // Exact match or sub-path match
         const isActive = href === path
             || (href === '/' && path === '/')
             || (href !== '/' && path.startsWith(href));
@@ -493,7 +635,7 @@ function highlightCurrentPage() {
 }
 
 // ============================================
-// SOCKET — CONNECT / DISCONNECT LOG
+// SOCKET — CONNECTION LOG
 // ============================================
 socket.on('connect', () => {
     console.log('[Shell] Socket connected:', socket.id);
@@ -510,6 +652,7 @@ socket.on('disconnect', (reason) => {
 // INIT
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
+    captureReferralCode();   // Must run before checkSession
     checkSession();
     setInterval(refreshBalance, 15000);
 
@@ -521,7 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bumpJackpot();
     setInterval(bumpJackpot, 2000);
 
-    // Fallback: if no real `feed` events arrive, seed with a couple of examples
+    // Fallback: seed live wins with examples if no real events arrive
     setTimeout(() => {
         if (liveWins.length === 0) {
             liveWins.push(
