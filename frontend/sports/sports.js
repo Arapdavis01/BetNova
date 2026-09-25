@@ -1,9 +1,11 @@
 // ============================================
-// BetNova — Sports Betting Client
-// Client-side date bounds · Live tab · Correct odds math
+// BetNova — Soccer Betting Client
+// Uses shared BetNova bet slip (localStorage)
+// Client-side date bounds · Live tab · Auth-aware odds
 // ============================================
 
-const API_BASE = (() => {
+// ---------- API Base Detection ----------
+const SPORTS_API_BASE = (() => {
     const host = window.location.hostname;
     const port = window.location.port;
     if ((host === 'localhost' || host === '127.0.0.1') && port !== '5000') {
@@ -12,10 +14,54 @@ const API_BASE = (() => {
     return '';
 })();
 
-const socket = io(API_BASE || undefined, {
-    transports: ['websocket', 'polling'],
-    reconnection: true,
-    reconnectionAttempts: 10
+// ============================================
+// SHARED BETNOVA BRIDGE
+// shell.js is loaded before sports.js on every page.
+// Fallbacks keep this file functional if shell.js fails.
+// ============================================
+const Nova = window.BetNova || {};
+const shellReady = typeof Nova.getBetSlip === 'function';
+
+// Local fallbacks (should rarely trigger — shell.js owns these)
+const _getBetSlip = shellReady ? Nova.getBetSlip : () => {
+    try { return JSON.parse(localStorage.getItem('betnova_betslip') || '[]'); }
+    catch (_) { return []; }
+};
+const _addToBetSlip = shellReady ? Nova.addToBetSlip : (sel) => {
+    const slip = _getBetSlip();
+    const i = slip.findIndex(s => s.matchExternalId === sel.matchExternalId);
+    if (i >= 0) {
+        if (slip[i].pick === sel.pick) slip.splice(i, 1);
+        else slip[i] = sel;
+    } else {
+        slip.push(sel);
+    }
+    localStorage.setItem('betnova_betslip', JSON.stringify(slip));
+    window.dispatchEvent(new CustomEvent('betslip:changed', { detail: { slip } }));
+    return true;
+};
+const _removeFromBetSlip = shellReady ? Nova.removeFromBetSlip : (id) => {
+    const slip = _getBetSlip().filter(s => s.matchExternalId !== id);
+    localStorage.setItem('betnova_betslip', JSON.stringify(slip));
+    window.dispatchEvent(new CustomEvent('betslip:changed', { detail: { slip } }));
+};
+const _clearBetSlip = shellReady ? Nova.clearSharedBetSlip : () => {
+    localStorage.setItem('betnova_betslip', '[]');
+    window.dispatchEvent(new CustomEvent('betslip:changed', { detail: { slip: [] } }));
+};
+const _handleOddClick = shellReady ? Nova.handleOddClick : (sel) => _addToBetSlip(sel);
+const _showToast = shellReady ? Nova.showToast : (msg, type) => {
+    const t = document.getElementById('toast');
+    if (!t) return;
+    t.innerText = msg;
+    t.className = `spo-toast ${type || 'info'}`;
+    t.classList.remove('hidden');
+    clearTimeout(window.__sportsToast);
+    window.__sportsToast = setTimeout(() => t.classList.add('hidden'), 3000);
+};
+const _formatKES = shellReady ? Nova.formatKES : (n) => parseFloat(n || 0).toLocaleString('en-KE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
 });
 
 // ============================================
@@ -28,7 +74,6 @@ let currentDateRange = 'today';   // today | tomorrow | week | all | live
 let currentSearch = '';
 let matches = [];
 let groupedMatches = [];
-let betSlip = [];
 let collapsedLeagues = {};
 let searchDebounceTimer = null;
 
@@ -55,33 +100,23 @@ const COUNTRY_FLAGS = {
 // ============================================
 // UTILS
 // ============================================
-function formatKES(n) {
-    return parseFloat(n || 0).toLocaleString('en-KE', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-}
-
 function escapeHtml(t) {
     const d = document.createElement('div');
     d.textContent = t || '';
     return d.innerHTML;
 }
 
-let toastTimer = null;
 function showToast(msg, type = 'info', duration = 3000) {
-    const t = document.getElementById('toast');
-    if (!t) return;
-    t.innerText = msg;
-    t.className = `spo-toast ${type}`;
-    t.classList.remove('hidden');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.add('hidden'), duration);
+    _showToast(msg, type, duration);
+}
+
+function formatKES(n) {
+    return _formatKES(n);
 }
 
 /**
  * Compute the ISO timestamp bounds for a given date range.
- * This runs on the CLIENT so the timezone is the user's local time.
+ * Runs on the CLIENT so the timezone is the user's local time.
  */
 function getDateRangeBounds(range) {
     const now = new Date();
@@ -156,12 +191,17 @@ function checkSession() {
     } else {
         currentUser = null;
     }
+
+    // Re-render odds selected state on signin/logout
+    refreshOddHighlights();
+    renderBetSlip();
+    updateBetslipCount();
 }
 
 async function refreshBalance() {
     if (!currentUser) return;
     try {
-        const res = await fetch(`${API_BASE}/api/me/${currentUser.userId}`);
+        const res = await fetch(`${SPORTS_API_BASE}/api/me/${currentUser.userId}`);
         if (!res.ok) return;
         const data = await res.json();
         localStorage.setItem('betnova_balance', data.balance);
@@ -209,14 +249,20 @@ function toggleSidebar() {
 
 // ============================================
 // BET SLIP DRAWER
+// The shared shell.js drawer is the source of truth.
+// This just proxies the header button and Escape key.
 // ============================================
 function toggleBetSlip() {
-    const betslip = document.getElementById('betslip');
-    const overlay = document.getElementById('betslip-overlay');
-    if (!betslip || !overlay) return;
-
-    betslip.classList.toggle('mobile-open');
-    overlay.classList.toggle('hidden', !betslip.classList.contains('mobile-open'));
+    if (typeof window.openBetslipDrawer === 'function') {
+        window.openBetslipDrawer();
+    } else {
+        // Fallback: local drawer if shell.js drawer is missing
+        const betslip = document.getElementById('betslip');
+        const overlay = document.getElementById('betslip-overlay');
+        if (!betslip || !overlay) return;
+        betslip.classList.toggle('mobile-open');
+        overlay.classList.toggle('hidden', !betslip.classList.contains('mobile-open'));
+    }
 }
 
 // ============================================
@@ -255,7 +301,7 @@ async function loadSports() {
     if (!container) return;
 
     try {
-        const res = await fetch(`${API_BASE}/api/sports/leagues`);
+        const res = await fetch(`${SPORTS_API_BASE}/api/sports/leagues`);
         const data = await res.json();
 
         if (!data.leagues || data.leagues.length === 0) {
@@ -351,7 +397,7 @@ async function loadMatches() {
             params.set('search', currentSearch);
         }
 
-        const res = await fetch(`${API_BASE}/api/sports/matches?${params}`);
+        const res = await fetch(`${SPORTS_API_BASE}/api/sports/matches?${params}`);
         const data = await res.json();
 
         groupedMatches = data.groups || [];
@@ -381,13 +427,11 @@ async function loadMatches() {
             });
         });
 
-        // Odd button handlers
+        // Odd button handlers — route through shared handler
         container.querySelectorAll('.spo-odd-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const externalId = btn.dataset.match;
-                const pick = btn.dataset.pick;
-                toggleSelection(externalId, pick);
+                handleOddButtonClick(btn);
             });
         });
 
@@ -438,18 +482,23 @@ function renderMatch(m) {
     const home = m.odds?.home || 0;
     const draw = m.odds?.draw || 0;
     const away = m.odds?.away || 0;
-
     const hasDraw = draw && draw > 1.01;
 
-    const inBetSlip = (pick) => betSlip.some(s =>
+    const inBetSlip = (pick) => _getBetSlip().some(s =>
         s.matchExternalId === m.externalId && s.pick === pick
     );
 
-    // Live indicator
     const isLive = new Date(m.commenceTime) <= new Date();
     const timeDisplay = isLive
         ? `<span class="spo-time-live"><i class="fa-solid fa-circle"></i> LIVE</span>`
         : `<i class="fa-regular fa-clock"></i> ${formatMatchTime(m.commenceTime)}`;
+
+    // Data attrs carry everything the shared handler needs
+    const d = `data-match="${escapeHtml(m.externalId)}"
+               data-home="${escapeHtml(m.homeTeam)}"
+               data-away="${escapeHtml(m.awayTeam)}"
+               data-league="${escapeHtml(m.sportTitle)}"
+               data-time="${escapeHtml(m.commenceTime || '')}"`;
 
     return `
         <div class="spo-match" data-match="${escapeHtml(m.externalId)}">
@@ -464,22 +513,25 @@ function renderMatch(m) {
             </div>
             <div class="spo-odds-row">
                 <button class="spo-odd-btn ${inBetSlip('home') ? 'selected' : ''}"
-                        data-match="${escapeHtml(m.externalId)}"
+                        ${d}
                         data-pick="home"
+                        data-odds="${home}"
                         ${home > 1.01 ? '' : 'disabled'}>
                     <span class="spo-odd-label">1</span>
                     <span class="spo-odd-value">${home > 1.01 ? home.toFixed(2) : '—'}</span>
                 </button>
                 ${hasDraw ? `
                 <button class="spo-odd-btn ${inBetSlip('draw') ? 'selected' : ''}"
-                        data-match="${escapeHtml(m.externalId)}"
-                        data-pick="draw">
+                        ${d}
+                        data-pick="draw"
+                        data-odds="${draw}">
                     <span class="spo-odd-label">X</span>
                     <span class="spo-odd-value">${draw.toFixed(2)}</span>
                 </button>` : ''}
                 <button class="spo-odd-btn ${inBetSlip('away') ? 'selected' : ''}"
-                        data-match="${escapeHtml(m.externalId)}"
+                        ${d}
                         data-pick="away"
+                        data-odds="${away}"
                         ${away > 1.01 ? '' : 'disabled'}>
                     <span class="spo-odd-label">2</span>
                     <span class="spo-odd-value">${away > 1.01 ? away.toFixed(2) : '—'}</span>
@@ -490,64 +542,88 @@ function renderMatch(m) {
 }
 
 // ============================================
-// BET SLIP — Selection toggle
+// ODD CLICK — routes through shared handler
+// Anonymous → store pending + open Sign In
+// Logged in → add to shared slip
 // ============================================
-function toggleSelection(matchExternalId, pick) {
-    const match = matches.find(m => m.externalId === matchExternalId);
-    if (!match) return;
-
-    const odds = match.odds[pick];
+function handleOddButtonClick(btn) {
+    const odds = parseFloat(btn.dataset.odds);
     if (!odds || odds <= 1.01) return;
 
-    const existingIdx = betSlip.findIndex(s => s.matchExternalId === matchExternalId);
+    const selection = {
+        matchExternalId: btn.dataset.match,
+        pick: btn.dataset.pick,
+        homeTeam: btn.dataset.home,
+        awayTeam: btn.dataset.away,
+        sportTitle: btn.dataset.league,
+        commenceTime: btn.dataset.time,
+        odds
+    };
 
-    if (existingIdx >= 0) {
-        if (betSlip[existingIdx].pick === pick) {
-            betSlip.splice(existingIdx, 1);
-            showToast('Removed from bet slip', 'info', 1500);
-        } else {
-            betSlip[existingIdx] = {
-                matchExternalId,
-                homeTeam: match.homeTeam,
-                awayTeam: match.awayTeam,
-                sportTitle: match.sportTitle,
-                commenceTime: match.commenceTime,
-                pick,
-                odds
-            };
-            showToast('Pick updated', 'info', 1500);
-        }
-    } else {
-        if (betSlip.length >= 20) {
-            showToast('Maximum 20 selections per bet', 'error');
-            return;
-        }
-        betSlip.push({
-            matchExternalId,
-            homeTeam: match.homeTeam,
-            awayTeam: match.awayTeam,
-            sportTitle: match.sportTitle,
-            commenceTime: match.commenceTime,
-            pick,
-            odds
-        });
-        showToast(`Added: ${match.homeTeam} vs ${match.awayTeam}`, 'success', 1500);
-    }
+    _handleOddClick(selection);
 
-    renderBetSlip();
-    refreshOddHighlights();
-    updateBetslipCount();
+    // Local re-render of selected state (fast, no refetch)
+    setTimeout(() => {
+        refreshOddHighlights();
+        updateBetslipCount();
+    }, 100);
 }
 
 // ============================================
-// BET SLIP — Render
+// BET SLIP — Proxy render into the shared drawer
+// The shell.js drawer is the real UI. This function
+// exists so pages that still have the old markup
+// can render a local slip. New pages use the drawer.
 // ============================================
 function renderBetSlip() {
+    // Shared drawer elements (shell.js)
+    const sharedBody = document.getElementById('betslip-drawer-body');
+    const sharedFooter = document.getElementById('betslip-drawer-footer');
+    const slip = _getBetSlip();
+
+    if (sharedBody) {
+        if (slip.length === 0) {
+            sharedBody.innerHTML = `
+                <div class="shell-betslip-empty">
+                    <i class="fa-solid fa-ticket"></i>
+                    <p>Click on odds to add selections</p>
+                    <span>Combine picks for bigger odds</span>
+                </div>`;
+            if (sharedFooter) sharedFooter.style.display = 'none';
+        } else {
+            sharedBody.innerHTML = slip.map(s => {
+                const pickLabel = s.pick === 'home' ? '1' : s.pick === 'draw' ? 'X' : '2';
+                return `
+                    <div class="shell-betslip-item">
+                        <div class="shell-betslip-item-top">
+                            <div class="shell-betslip-item-teams">
+                                ${escapeHtml(s.homeTeam)} vs ${escapeHtml(s.awayTeam)}
+                            </div>
+                            <button class="shell-betslip-item-remove"
+                                    onclick="sportsRemoveSelection('${escapeHtml(s.matchExternalId)}')"
+                                    aria-label="Remove">&times;</button>
+                        </div>
+                        <div class="shell-betslip-item-meta">
+                            <span class="shell-betslip-item-pick">
+                                <i class="fa-solid fa-check"></i> ${pickLabel}
+                            </span>
+                            <span class="shell-betslip-item-odds">${s.odds.toFixed(2)}x</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            if (sharedFooter) sharedFooter.style.display = 'flex';
+            recalcBetSlip();
+        }
+        return;
+    }
+
+    // Legacy local drawer (for old markup)
     const body = document.getElementById('betslip-body');
     const footer = document.getElementById('betslip-footer');
     if (!body || !footer) return;
 
-    if (betSlip.length === 0) {
+    if (slip.length === 0) {
         body.innerHTML = `
             <div class="spo-betslip-empty">
                 <i class="fa-solid fa-ticket"></i>
@@ -558,12 +634,13 @@ function renderBetSlip() {
         return;
     }
 
-    body.innerHTML = betSlip.map((s, i) => {
-        const pickLabel = s.pick === 'home' ? '1' :
-                         s.pick === 'draw' ? 'X' : '2';
+    body.innerHTML = slip.map((s, i) => {
+        const pickLabel = s.pick === 'home' ? '1' : s.pick === 'draw' ? 'X' : '2';
         return `
             <div class="spo-slip-item">
-                <button class="spo-slip-item-remove" onclick="removeSelection(${i})" aria-label="Remove">&times;</button>
+                <button class="spo-slip-item-remove"
+                        onclick="sportsRemoveSelection('${escapeHtml(s.matchExternalId)}')"
+                        aria-label="Remove">&times;</button>
                 <div class="spo-slip-teams">${escapeHtml(s.homeTeam)} vs ${escapeHtml(s.awayTeam)}</div>
                 <div class="spo-slip-pick">
                     <span class="spo-slip-pick-label">${pickLabel}</span>
@@ -577,76 +654,103 @@ function renderBetSlip() {
     recalcBetSlip();
 }
 
-function removeSelection(index) {
-    if (index < 0 || index >= betSlip.length) return;
-    betSlip.splice(index, 1);
+// Expose for inline onclick
+window.sportsRemoveSelection = function (matchExternalId) {
+    _removeFromBetSlip(matchExternalId);
     renderBetSlip();
     refreshOddHighlights();
     updateBetslipCount();
-}
+};
 
-function clearBetSlip() {
-    if (betSlip.length === 0) return;
-    betSlip = [];
+window.sportsClearBetSlip = function () {
+    if (_getBetSlip().length === 0) return;
+    _clearBetSlip();
     renderBetSlip();
     refreshOddHighlights();
     updateBetslipCount();
     showToast('Bet slip cleared', 'info', 1500);
-}
+};
 
+// ============================================
+// BET SLIP — Highlight selected odds
+// ============================================
 function refreshOddHighlights() {
-    document.querySelectorAll('.spo-odd-btn').forEach(btn => btn.classList.remove('selected'));
-    betSlip.forEach(sel => {
-        const btn = document.querySelector(
-            `.spo-odd-btn[data-match="${sel.matchExternalId}"][data-pick="${sel.pick}"]`
+    const slip = _getBetSlip();
+    document.querySelectorAll('.spo-odd-btn').forEach(btn => {
+        const isSelected = slip.some(s =>
+            s.matchExternalId === btn.dataset.match && s.pick === btn.dataset.pick
         );
-        if (btn) btn.classList.add('selected');
+        btn.classList.toggle('selected', isSelected);
     });
 }
 
 function updateBetslipCount() {
-    const countEl = document.getElementById('betslip-count');
+    const count = _getBetSlip().length;
+
+    // Shared shell badge
+    document.querySelectorAll('.shell-betslip-count, #betslip-count').forEach(el => {
+        el.innerText = count;
+        el.dataset.count = count;
+    });
+
+    // Legacy local badge
     const badgeEl = document.getElementById('betslip-count-badge');
-    const count = betSlip.length;
-    if (countEl) {
-        countEl.innerText = count;
-        countEl.dataset.count = count;
-    }
     if (badgeEl) badgeEl.innerText = count;
 }
 
 // ============================================
 // BET SLIP — Recalculate (odds MULTIPLIED)
+// Reads input from either the shared drawer or the
+// legacy local drawer, whichever is present.
 // ============================================
 function recalcBetSlip() {
+    const slip = _getBetSlip();
+
     // ⭐ Total odds = MULTIPLY all selection odds
-    // 1.20 × 10.30 = 12.36
-    const totalOdds = betSlip.reduce((acc, s) => acc * s.odds, 1);
+    const totalOdds = slip.reduce((acc, s) => acc * s.odds, 1);
 
+    // Shared drawer stake input
+    const sharedStake = document.getElementById('betslip-drawer-stake');
+    if (sharedStake) {
+        const stake = parseFloat(sharedStake.value) || 0;
+        const payout = totalOdds * stake;
+        const oddsEl = document.getElementById('betslip-drawer-total-odds');
+        const payoutEl = document.getElementById('betslip-drawer-payout');
+        const countEl = document.getElementById('betslip-drawer-selections');
+        if (oddsEl) oddsEl.innerText = totalOdds.toFixed(2);
+        if (payoutEl) payoutEl.innerText = `KES ${formatKES(payout)}`;
+        if (countEl) countEl.innerText = slip.length;
+    }
+
+    // Legacy local drawer
     const stakeInput = document.getElementById('betslip-stake');
-    const stake = stakeInput ? parseFloat(stakeInput.value) || 0 : 0;
-    const payout = totalOdds * stake;
-
-    const oddsEl = document.getElementById('betslip-total-odds');
-    const payoutEl = document.getElementById('betslip-payout');
-    const selectionsEl = document.getElementById('betslip-selections-count');
-
-    if (oddsEl) oddsEl.innerText = totalOdds.toFixed(2);
-    if (payoutEl) payoutEl.innerText = `KES ${formatKES(payout)}`;
-    if (selectionsEl) selectionsEl.innerText = betSlip.length;
+    if (stakeInput) {
+        const stake = parseFloat(stakeInput.value) || 0;
+        const payout = totalOdds * stake;
+        const oddsEl = document.getElementById('betslip-total-odds');
+        const payoutEl = document.getElementById('betslip-payout');
+        const countEl = document.getElementById('betslip-selections-count');
+        if (oddsEl) oddsEl.innerText = totalOdds.toFixed(2);
+        if (payoutEl) payoutEl.innerText = `KES ${formatKES(payout)}`;
+        if (countEl) countEl.innerText = slip.length;
+    }
 }
 
+// ============================================
+// STAKE CONTROLS — proxy for shared drawer
+// ============================================
 function adjustStake(delta) {
-    const input = document.getElementById('betslip-stake');
+    const input = document.getElementById('betslip-stake')
+               || document.getElementById('betslip-drawer-stake');
     if (!input) return;
     const current = parseFloat(input.value) || 0;
-    const next = Math.max(10, current + delta);
-    input.value = next;
+    input.value = Math.max(10, current + delta);
     recalcBetSlip();
 }
 
 function setStake(amount) {
-    const input = document.getElementById('betslip-stake');
+    const input = document.getElementById('betslip-stake')
+               || document.getElementById('betslip-drawer-stake');
     if (!input) return;
     input.value = amount;
     recalcBetSlip();
@@ -654,19 +758,31 @@ function setStake(amount) {
 
 // ============================================
 // PLACE BET
+// Triggered from the shared shell drawer's button,
+// which calls window.placeDrawerBet(). That function
+// delegates here when on /soccer.
 // ============================================
 async function placeBet() {
     if (!currentUser) {
-        showToast('Sign in to place bets', 'error');
+        // Shell's requireAuth opens sign-in modal
+        if (shellReady && typeof Nova.requireAuth === 'function') {
+            Nova.requireAuth(() => placeBet(), 'Sign in to place your bet');
+        } else {
+            showToast('Sign in to place bets', 'error');
+        }
         return;
     }
-    if (betSlip.length === 0) {
+
+    const slip = _getBetSlip();
+    if (slip.length === 0) {
         showToast('Add selections first', 'error');
         return;
     }
 
-    const stakeInput = document.getElementById('betslip-stake');
-    const stake = parseFloat(stakeInput.value);
+    const stakeInput = document.getElementById('betslip-drawer-stake')
+                    || document.getElementById('betslip-stake');
+    const stake = stakeInput ? parseFloat(stakeInput.value) : 0;
+
     if (!stake || stake < 10) {
         showToast('Minimum stake is KES 10', 'error');
         return;
@@ -678,19 +794,22 @@ async function placeBet() {
         return;
     }
 
-    const btn = document.getElementById('place-bet-btn');
-    const originalHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Placing...';
+    const btn = document.getElementById('betslip-drawer-place')
+             || document.getElementById('place-bet-btn');
+    const originalHtml = btn ? btn.innerHTML : null;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Placing...';
+    }
 
     try {
-        const res = await fetch(`${API_BASE}/api/sports/bets`, {
+        const res = await fetch(`${SPORTS_API_BASE}/api/sports/bets`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 userId: currentUser.userId,
                 stake,
-                selections: betSlip.map(s => ({
+                selections: slip.map(s => ({
                     matchExternalId: s.matchExternalId,
                     pick: s.pick
                 }))
@@ -706,6 +825,8 @@ async function placeBet() {
         localStorage.setItem('betnova_balance', data.newBalance);
         const balEl = document.getElementById('balance-display');
         if (balEl) balEl.innerText = formatKES(data.newBalance);
+        const shellBal = document.getElementById('shell-balance');
+        if (shellBal) shellBal.innerText = formatKES(data.newBalance);
 
         showToast(
             `Bet placed! Odds: ${data.totalOdds.toFixed(2)}x · Payout: KES ${formatKES(data.potentialPayout)}`,
@@ -713,36 +834,51 @@ async function placeBet() {
             5000
         );
 
-        clearBetSlip();
+        _clearBetSlip();
+        renderBetSlip();
+        refreshOddHighlights();
+        updateBetslipCount();
 
-        if (window.innerWidth <= 900) {
-            const betslip = document.getElementById('betslip');
-            const overlay = document.getElementById('betslip-overlay');
-            betslip?.classList.remove('mobile-open');
-            overlay?.classList.add('hidden');
+        if (window.innerWidth <= 900 && typeof window.closeBetslipDrawer === 'function') {
+            window.closeBetslipDrawer();
         }
     } catch (err) {
         console.error('Place bet error:', err);
         showToast('Network error — try again', 'error');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
     }
 }
+
+// Expose for the shared drawer button
+window.placeDrawerBet = function () { placeBet(); };
+window.sportsPlaceBet = placeBet;
 
 // ============================================
 // MY BETS
 // ============================================
 async function openMyBets() {
     if (!currentUser) {
-        showToast('Sign in to view your bets', 'error');
+        if (shellReady && typeof Nova.requireAuth === 'function') {
+            Nova.requireAuth(() => openMyBets(), 'Sign in to view your bets');
+        } else {
+            showToast('Sign in to view your bets', 'error');
+        }
         return;
     }
-    const modal = document.getElementById('mybets-modal');
+
+    // Prefer the shared shell history modal if present
+    const sharedModal = document.getElementById('history-modal');
+    const modal = sharedModal || document.getElementById('mybets-modal');
     if (modal) modal.classList.remove('hidden');
 
-    const list = document.getElementById('mybets-list');
+    const list = document.getElementById('history-list')
+              || document.getElementById('mybets-list');
     if (!list) return;
+
     list.innerHTML = `
         <div class="spo-loading">
             <i class="fa-solid fa-spinner fa-spin"></i>
@@ -750,7 +886,7 @@ async function openMyBets() {
         </div>`;
 
     try {
-        const res = await fetch(`${API_BASE}/api/sports/bets/${currentUser.userId}`);
+        const res = await fetch(`${SPORTS_API_BASE}/api/sports/bets/${currentUser.userId}`);
         const data = await res.json();
 
         if (!data.bets || data.bets.length === 0) {
@@ -776,8 +912,7 @@ async function openMyBets() {
 }
 
 function closeMyBets() {
-    const modal = document.getElementById('mybets-modal');
-    if (modal) modal.classList.add('hidden');
+    document.getElementById('mybets-modal')?.classList.add('hidden');
 }
 
 function renderMyBet(b) {
@@ -786,7 +921,6 @@ function renderMyBet(b) {
     const payout = b.status === 'won'
         ? formatKES(b.actualPayout || 0)
         : formatKES(b.potentialPayout || 0);
-
     const statusClass = b.status || 'pending';
 
     return `
@@ -814,16 +948,26 @@ function renderMyBet(b) {
 }
 
 // ============================================
-// SOCKET — Live balance updates
+// CROSS-PAGE BET SLIP SYNC
+// When the shared slip changes (from home, drawer, another tab),
+// update our odds highlights + drawer render.
 // ============================================
-socket.on('connect', () => {
-    console.log('[Sports] Socket connected');
+window.addEventListener('betslip:changed', () => {
+    refreshOddHighlights();
+    renderBetSlip();
+    updateBetslipCount();
 });
 
-socket.on('balance_update', (balance) => {
-    localStorage.setItem('betnova_balance', balance);
-    const el = document.getElementById('balance-display');
-    if (el) el.innerText = formatKES(balance);
+// Same-tab, cross-tab session changes
+window.addEventListener('storage', (e) => {
+    if (e.key === 'betnova_user' || e.key === 'betnova_userid' || e.key === 'betnova_balance') {
+        checkSession();
+    }
+    if (e.key === 'betnova_betslip') {
+        refreshOddHighlights();
+        renderBetSlip();
+        updateBetslipCount();
+    }
 });
 
 // ============================================
@@ -834,10 +978,29 @@ document.addEventListener('keydown', (e) => {
         document.getElementById('mybets-modal')?.classList.add('hidden');
         document.getElementById('sports-sidebar')?.classList.remove('mobile-open');
         document.getElementById('sidebar-overlay')?.classList.add('hidden');
+        // Shared drawer handles its own close, but ensure local one too
         document.getElementById('betslip')?.classList.remove('mobile-open');
         document.getElementById('betslip-overlay')?.classList.add('hidden');
     }
 });
+
+// ============================================
+// SOCKET — Live balance updates
+// ============================================
+const sportsSocket = (shellReady && Nova.socket) ? Nova.socket : null;
+
+if (sportsSocket) {
+    sportsSocket.on('balance_update', (balance) => {
+        localStorage.setItem('betnova_balance', balance);
+        const el = document.getElementById('balance-display');
+        if (el) el.innerText = formatKES(balance);
+        const shellEl = document.getElementById('shell-balance');
+        if (shellEl) shellEl.innerText = formatKES(balance);
+    });
+    sportsSocket.on('connect', () => console.log('[Soccer] Socket connected'));
+} else {
+    console.warn('[Soccer] Shared socket not available — page will not receive live updates');
+}
 
 // ============================================
 // INIT
@@ -848,6 +1011,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMatches();
     renderBetSlip();
     updateBetslipCount();
+    refreshOddHighlights();
 
     setInterval(refreshBalance, 15000);
 
@@ -856,10 +1020,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 60000);
 });
 
-// Cleanup on page hide
+// Re-sync when tab becomes visible
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
         refreshBalance();
         loadMatches();
+        renderBetSlip();
+        refreshOddHighlights();
+        updateBetslipCount();
     }
 });
