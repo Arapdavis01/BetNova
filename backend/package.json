@@ -1,7 +1,7 @@
 {
   "name": "betnova-backend",
-  "version": "2.0.0",
-  "description": "Real-time crash game backend with PayHero M-Pesa payment integration",
+  "version": "2.1.0",
+  "description": "Real-time crash game backend with PayHero M-Pesa payments and email OTP verification",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -16,6 +16,8 @@
     "socket.io",
     "payhero",
     "m-pesa",
+    "nodemailer",
+    "email-otp",
     "real-time"
   ],
   "author": "BetNova",
@@ -27,6 +29,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "mongoose": "^8.9.5",
+    "nodemailer": "^6.9.16",
     "socket.io": "^4.8.1"
   }
 }
