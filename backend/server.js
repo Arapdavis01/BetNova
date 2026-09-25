@@ -102,6 +102,9 @@ if (process.env.NODE_ENV === 'production') {
     app.get('/cashier/', (req, res) => {
         res.sendFile(path.join(frontendPath, 'cashier/index.html'));
     });
+    app.get('/admin', (req, res) => {
+        res.sendFile(path.join(frontendPath, 'admin.html'));
+    });
 
     // ---------- Static assets ----------
     app.use(express.static(frontendPath));
@@ -154,9 +157,22 @@ const onlineUsers = new Set();
 const CURRENCY = 'KES';
 
 // ============================================
+// EXPOSE TO ADMIN API
+// Admin routes read these via `global.*`
+// ============================================
+global.gameState = gameState;
+global.activeBetsCount = 0;
+
+function syncGlobals() {
+    global.gameState = gameState;
+    global.activeBetsCount = activeBets.size;
+}
+
+// ============================================
 // BROADCAST HELPERS
 // ============================================
 function broadcastState() {
+    syncGlobals();
     io.emit('betnova_tick', gameState);
     io.emit('active_bets_count', activeBets.size);
     io.emit('chat_online', onlineUsers.size);
@@ -182,6 +198,7 @@ function getPublicBets() {
 }
 
 function broadcastAllBets() {
+    syncGlobals();
     io.emit('all_bets_update', getPublicBets());
 }
 
@@ -665,6 +682,7 @@ connectDB().then(async () => {
             gameState.roundId = 0;
             console.log(`🆕 Starting fresh from round #1`);
         }
+        syncGlobals();
     } catch (err) {
         console.error('Failed to load last roundId:', err.message);
         gameState.roundId = 0;
