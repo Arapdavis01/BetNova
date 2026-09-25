@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aviator — BetNova</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="aviator.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ============================================ -->
+<!-- TOP BAR -->
+<!-- ============================================ -->
+<header class="avi-header">
+    <div class="avi-header-inner">
+        <a href="/" class="avi-back">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span class="avi-logo">
+                <span class="avi-logo-red">Bet</span><span class="avi-logo-white">Nova</span>
+                <span class="avi-logo-sub">Aviator</span>
+            </span>
+        </a>
+
+        <div class="avi-header-right">
+            <div class="avi-balance-chip" id="balance-chip">
+                <span id="balance-display">0.00</span>
+                <span class="avi-currency">KES</span>
+            </div>
+            <button class="avi-icon-btn" onclick="openModal('deposit-modal')" title="Deposit">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+            <button class="avi-icon-btn" onclick="openModal('withdraw-modal')" title="Withdraw">
+                <i class="fa-solid fa-arrow-up-from-bracket"></i>
+            </button>
+            <button class="avi-icon-btn" id="sound-toggle" onclick="toggleSound()" title="Toggle sound">
+                <i class="fa-solid fa-volume-high"></i>
+            </button>
+            <button class="avi-icon-btn avi-menu-toggle" onclick="toggleChat()" title="Chat">
+                <i class="fa-solid fa-comments"></i>
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- ============================================ -->
+<!-- MAIN LAYOUT (3 columns desktop) -->
+<!-- ============================================ -->
+<main class="avi-layout">
+
+    <!-- ============ LEFT: ALL BETS ============ -->
+    <aside class="avi-bets-panel" id="bets-panel">
+        <div class="avi-bets-tabs">
+            <button class="avi-tab active" data-tab="all">All Bets</button>
+            <button class="avi-tab" data-tab="previous">Previous</button>
+            <button class="avi-tab" data-tab="top">Top</button>
+        </div>
+
+        <div class="avi-bets-summary">
+            <span class="avi-bets-count-label">ALL BETS</span>
+            <span class="avi-bets-count" id="bets-count">0</span>
+        </div>
+
+        <div class="avi-bets-header">
+            <span>Player</span>
+            <span>Bet KES</span>
+            <span>X</span>
+            <span>Win KES</span>
+        </div>
+
+        <div class="avi-bets-list" id="bets-list">
+            <div class="avi-empty-state">No active bets</div>
+        </div>
+    </aside>
+
+    <!-- ============ CENTER: GAME ============ -->
+    <section class="avi-game">
+
+        <!-- Jackpot banner -->
+        <div class="avi-jackpot">
+            <span class="avi-live-dot"></span>
+            <span class="avi-live-label">LIVE</span>
+            <span class="avi-jackpot-text">
+                Mfalme Wa Anga <strong>KES 400,000</strong> Daily Crown
+            </span>
+            <button class="avi-jackpot-arrow">
+                <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+
+        <!-- Crash history strip -->
+        <div class="avi-history-strip" id="history-strip">
+            <!-- Filled dynamically -->
+        </div>
+
+        <!-- Game canvas -->
+        <div class="avi-canvas-wrap">
+            <div class="avi-status-badge" id="status-badge">Waiting for next round...</div>
+            <h2 class="avi-multiplier" id="multiplier">1.00<span>x</span></h2>
+            <canvas id="avi-canvas"></canvas>
+            <div class="avi-lock" id="game-lock">
+                <div class="avi-lock-inner">
+                    <i class="fa-solid fa-lock"></i>
+                    <h3>Sign in to play</h3>
+                    <p>Join the round to place your bet</p>
+                    <button onclick="location.href='/'">Go to Home</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dual bet panels -->
+        <div class="avi-bet-panels">
+            <!-- BET PANEL 1 -->
+            <div class="avi-bet-panel" id="bet-panel-1">
+                <div class="avi-bet-tabs">
+                    <button class="avi-bet-tab active" data-panel="1" data-mode="bet">Bet</button>
+                    <button class="avi-bet-tab" data-panel="1" data-mode="auto">Auto</button>
+                </div>
+
+                <div class="avi-bet-body" data-panel="1">
+                    <div class="avi-stake-row">
+                        <button class="avi-stake-btn" onclick="adjustStake(1, -10)">−</button>
+                        <input type="number" class="avi-stake-input" id="stake-1" value="10" min="10" step="10">
+                        <button class="avi-stake-btn" onclick="adjustStake(1, 10)">+</button>
+                    </div>
+
+                    <div class="avi-quick-chips">
+                        <button onclick="setStake(1, 100)">100</button>
+                        <button onclick="setStake(1, 250)">250</button>
+                        <button onclick="setStake(1, 1000)">1,000</button>
+                        <button onclick="setStake(1, 25000)">25,000</button>
+                    </div>
+
+                    <button class="avi-action-btn avi-action-bet" id="action-1" onclick="handleBetAction(1)">
+                        BET 10.00 KES
+                    </button>
+                </div>
+
+                <!-- Auto mode -->
+                <div class="avi-bet-body hidden" data-panel="1" data-auto="true">
+                    <div class="avi-auto-row">
+                        <label>Auto Cashout</label>
+                        <div class="avi-auto-input-wrap">
+                            <input type="number" class="avi-auto-input" id="auto-cashout-1" placeholder="2.00" step="0.01" min="1.01">
+                            <span>x</span>
+                        </div>
+                    </div>
+                    <div class="avi-auto-row">
+                        <label>Auto Bet</label>
+                        <div class="avi-toggle" onclick="toggleAutoBet(1)">
+                            <span class="avi-toggle-knob"></span>
+                        </div>
+                    </div>
+                    <button class="avi-action-btn avi-action-bet" id="action-1-auto" onclick="handleBetAction(1)">
+                        BET 10.00 KES
+                    </button>
+                </div>
+            </div>
+
+            <!-- BET PANEL 2 -->
+            <div class="avi-bet-panel" id="bet-panel-2">
+                <div class="avi-bet-tabs">
+                    <button class="avi-bet-tab active" data-panel="2" data-mode="bet">Bet</button>
+                    <button class="avi-bet-tab" data-panel="2" data-mode="auto">Auto</button>
+                </div>
+
+                <div class="avi-bet-body" data-panel="2">
+                    <div class="avi-stake-row">
+                        <button class="avi-stake-btn" onclick="adjustStake(2, -10)">−</button>
+                        <input type="number" class="avi-stake-input" id="stake-2" value="10" min="10" step="10">
+                        <button class="avi-stake-btn" onclick="adjustStake(2, 10)">+</button>
+                    </div>
+
+                    <div class="avi-quick-chips">
+                        <button onclick="setStake(2, 100)">100</button>
+                        <button onclick="setStake(2, 250)">250</button>
+                        <button onclick="setStake(2, 1000)">1,000</button>
+                        <button onclick="setStake(2, 25000)">25,000</button>
+                    </div>
+
+                    <button class="avi-action-btn avi-action-bet" id="action-2" onclick="handleBetAction(2)">
+                        BET 10.00 KES
+                    </button>
+                </div>
+
+                <div class="avi-bet-body hidden" data-panel="2" data-auto="true">
+                    <div class="avi-auto-row">
+                        <label>Auto Cashout</label>
+                        <div class="avi-auto-input-wrap">
+                            <input type="number" class="avi-auto-input" id="auto-cashout-2" placeholder="2.00" step="0.01" min="1.01">
+                            <span>x</span>
+                        </div>
+                    </div>
+                    <div class="avi-auto-row">
+                        <label>Auto Bet</label>
+                        <div class="avi-toggle" onclick="toggleAutoBet(2)">
+                            <span class="avi-toggle-knob"></span>
+                        </div>
+                    </div>
+                    <button class="avi-action-btn avi-action-bet" id="action-2-auto" onclick="handleBetAction(2)">
+                        BET 10.00 KES
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Provably fair footer -->
+        <div class="avi-fair-footer">
+            <span>Provably Fair Game</span>
+            <span class="avi-divider">·</span>
+            <a href="#" onclick="openModal('fairness-modal'); return false;">Verify</a>
+            <span class="avi-divider">·</span>
+            <span>Powered by BetNova</span>
+        </div>
+    </section>
+
+    <!-- ============ RIGHT: CHAT ============ -->
+    <aside class="avi-chat-panel" id="chat-panel">
+        <div class="avi-chat-header">
+            <span class="avi-chat-title">
+                <i class="fa-solid fa-comments"></i>
+                <span id="chat-online">0</span> online
+            </span>
+            <button class="avi-chat-close" onclick="toggleChat()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="avi-chat-messages" id="chat-messages">
+            <div class="avi-chat-empty">Be the first to say something</div>
+        </div>
+
+        <div class="avi-chat-input-row">
+            <input type="text" id="chat-input" placeholder="Your message..." maxlength="200"
+                   onkeydown="if(event.key==='Enter') sendChat()">
+            <button onclick="sendChat()">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+    </aside>
+</main>
+
+<!-- ============================================ -->
+<!-- MOBILE BOTTOM NAV -->
+<!-- ============================================ -->
+<nav class="avi-bottom-nav">
+    <a href="/" class="avi-bottom-item">
+        <i class="fa-solid fa-house"></i>
+        <span>Home</span>
+    </a>
+    <a href="/aviator" class="avi-bottom-item active">
+        <i class="fa-solid fa-plane-up"></i>
+        <span>Aviator</span>
+    </a>
+    <a href="#" onclick="openModal('history-modal'); return false;" class="avi-bottom-item">
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <span>My Bets</span>
+    </a>
+    <a href="#" onclick="openModal('profile-modal'); return false;" class="avi-bottom-item">
+        <i class="fa-solid fa-user"></i>
+        <span>Profile</span>
+    </a>
+</nav>
+
+<!-- ============================================ -->
+<!-- MODALS (minimal — reuse from main app) -->
+<!-- ============================================ -->
+<div id="deposit-modal" class="avi-modal hidden">
+    <div class="avi-modal-card">
+        <button class="avi-modal-close" onclick="closeModal('deposit-modal')">&times;</button>
+        <h3>Deposit Funds</h3>
+        <p>Instant M-Pesa</p>
+        <input type="number" id="deposit-amount" value="100" class="avi-modal-input">
+        <input type="tel" id="deposit-phone" placeholder="0712345678" class="avi-modal-input">
+        <button onclick="handleDeposit()" class="avi-modal-btn">Send M-Pesa Request</button>
+    </div>
+</div>
+
+<div id="withdraw-modal" class="avi-modal hidden">
+    <div class="avi-modal-card">
+        <button class="avi-modal-close" onclick="closeModal('withdraw-modal')">&times;</button>
+        <h3>Withdraw Funds</h3>
+        <p>Sent to M-Pesa within minutes</p>
+        <input type="number" id="withdraw-amount" value="100" class="avi-modal-input">
+        <input type="tel" id="withdraw-phone" placeholder="0712345678" class="avi-modal-input">
+        <button onclick="handleWithdraw()" class="avi-modal-btn">Withdraw</button>
+    </div>
+</div>
+
+<div id="history-modal" class="avi-modal hidden">
+    <div class="avi-modal-card avi-modal-wide">
+        <button class="avi-modal-close" onclick="closeModal('history-modal')">&times;</button>
+        <h3>My Bets</h3>
+        <div id="history-list" class="avi-history-list">Loading...</div>
+    </div>
+</div>
+
+<div id="fairness-modal" class="avi-modal hidden">
+    <div class="avi-modal-card avi-modal-wide">
+        <button class="avi-modal-close" onclick="closeModal('fairness-modal')">&times;</button>
+        <h3>Provably Fair</h3>
+        <p class="avi-modal-desc">Every round is cryptographically verifiable.</p>
+        <div class="avi-fairness-grid">
+            <div><label>Round</label><div id="pf-round">—</div></div>
+            <div><label>Hash</label><div id="pf-hash" class="truncate">—</div></div>
+            <div><label>Seed</label><div id="pf-seed">Waiting...</div></div>
+            <div><label>Crash</label><div id="pf-crash">—</div></div>
+        </div>
+        <div id="pf-result" class="avi-fairness-result">Awaiting next round...</div>
+    </div>
+</div>
+
+<div id="profile-modal" class="avi-modal hidden">
+    <div class="avi-modal-card">
+        <button class="avi-modal-close" onclick="closeModal('profile-modal')">&times;</button>
+        <h3>Profile</h3>
+        <p id="profile-name" class="avi-profile-name">—</p>
+        <button onclick="handleLogout()" class="avi-modal-btn avi-modal-btn-danger">Log Out</button>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="avi-toast hidden"></div>
+
+<script src="aviator.js"></script>
+</body>
+</html>
