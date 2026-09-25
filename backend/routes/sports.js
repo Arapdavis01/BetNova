@@ -1,6 +1,7 @@
 // ============================================
 // BetNova — Sports Betting API
 // Time-based filters, live matches, grouped responses
+// Popular matches endpoint for home page
 // ============================================
 
 const express = require('express');
@@ -18,9 +19,6 @@ function safeFixed(n, decimals = 2) {
     return parseFloat((n || 0).toFixed(decimals));
 }
 
-/**
- * Get priority ordering for sport keys
- */
 function getPriorityMap() {
     try {
         const { PRIORITY_LEAGUES } = require('../services/oddsProvider');
@@ -51,18 +49,7 @@ router.get('/', async (req, res) => {
 });
 
 // ============================================
-// GET /api/sports/matches
-// Time-based filters (from/to ISO OR range)
-// Query params:
-//   - sport=soccer_epl               (single league)
-//   - group=Soccer                   (whole sport group)
-//   - from=2026-09-26T00:00:00.000Z  (ISO — client-side date lower bound)
-//   - to=2026-09-27T00:00:00.000Z    (ISO — client-side date upper bound)
-//   - range=today|tomorrow|week|all  (fallback for no from/to)
-//   - search=arsenal                 (team name search)
-//   - status=upcoming|live|finished  (or 'all' to skip)
-//   - limit=300
-//   - format=grouped|flat            (default: grouped)
+// GET /api/sports/matches — main matches endpoint
 // ============================================
 router.get('/matches', async (req, res) => {
     try {
@@ -89,21 +76,17 @@ router.get('/matches', async (req, res) => {
         const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
 
         if (status === 'live') {
-            // Matches that started within the last 3 hours
             filter.commenceTime = {
                 $lte: now,
                 $gte: threeHoursAgo
             };
         } else if (status === 'upcoming') {
-            // Matches starting in the future
             filter.commenceTime = { $gt: now };
 
-            // Client-supplied ISO window takes precedence
             if (from || to) {
                 if (from) filter.commenceTime.$gte = new Date(from);
                 if (to) filter.commenceTime.$lt = new Date(to);
             } else if (range && range !== 'all') {
-                // Fallback to server-side range computation
                 const rangeBounds = computeRangeBounds(range);
                 if (rangeBounds) {
                     filter.commenceTime.$gte = rangeBounds.start;
@@ -112,8 +95,6 @@ router.get('/matches', async (req, res) => {
             }
         } else if (status === 'finished') {
             filter.commenceTime = { $lt: now };
-        } else {
-            // status === 'all' or unrecognized — no time filter
         }
 
         // ---------- Team search ----------
@@ -131,7 +112,6 @@ router.get('/matches', async (req, res) => {
             .limit(Math.min(parseInt(limit) || 300, 500))
             .lean();
 
-        // ---------- Return flat if requested ----------
         if (format === 'flat') {
             return res.json({
                 matches,
@@ -157,7 +137,6 @@ router.get('/matches', async (req, res) => {
             grouped[m.sportKey].matches.push(m);
         }
 
-        // Sort groups by priority (then alphabetically)
         const sortedGroups = Object.values(grouped).sort((a, b) => {
             if (a.priority !== b.priority) return a.priority - b.priority;
             return a.sportTitle.localeCompare(b.sportTitle);
@@ -176,7 +155,6 @@ router.get('/matches', async (req, res) => {
 
 /**
  * Fallback server-side range computation.
- * Only used when client doesn't send from/to ISO params.
  */
 function computeRangeBounds(range) {
     const now = new Date();
@@ -206,15 +184,112 @@ function computeRangeBounds(range) {
 }
 
 // ============================================
-// GET /api/sports/leagues
-// Returns distinct leagues with match counts
+// GET /api/sports/matches/popular
+// Top N popular matches from priority leagues
+// Query: ?limit=6
+// ============================================
+router.get('/matches/popular', async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit) || 6, 20);
+        const now = new Date();
+
+        // Top 5 priority leagues (soccer-focused for the home page)
+        const topLeagues = [
+            'soccer_epl',
+            'soccer_spain_la_liga',
+            'soccer_uefa_champs_league',
+            'soccer_italy_serie_a',
+            'soccer_germany_bundesliga',
+            'soccer_france_ligue_one',
+            'soccer_africa_cup_of_nations'
+        ];
+
+        // Fetch top matches from each priority league, sorted by commenceTime
+        const matches = await Match.find({
+            isActive: true,
+            commenceTime: { $gt: now },
+            sportKey: { $in: topLeagues }
+        })
+            .sort({ commenceTime: 1 })
+            .limit(60)  // fetch plenty, then pick diverse
+            .lean();
+
+        if (matches.length === 0) {
+            return res.json({ matches: [], count: 0 });
+        }
+
+        // Balance across leagues: pick the first match from each league, then fill
+        const byLeague = {};
+        for (const m of matches) {
+            if (!byLeague[m.sportKey]) byLeague[m.sportKey] = [];
+            byLeague[m.sportKey].push(m);
+        }
+
+        const picked = [];
+        const leagueKeys = Object.keys(byLeague);
+
+        // Round-robin pick
+        let round = 0;
+        while (picked.length < limit && round < 20) {
+            for (const key of leagueKeys) {
+                if (picked.length >= limit) break;
+                if (byLeague[key][round]) {
+                    picked.push(byLeague[key][round]);
+                }
+            }
+            round++;
+        }
+
+        // Sort final list by commenceTime
+        picked.sort((a, b) => new Date(a.commenceTime) - new Date(b.commenceTime));
+
+        res.json({
+            matches: picked.slice(0, limit),
+            count: picked.length
+        });
+    } catch (err) {
+        console.error('Popular matches error:', err);
+        res.status(500).json({ error: 'Failed to load popular matches.' });
+    }
+});
+
+// ============================================
+// GET /api/sports/matches/live
+// Top N live matches currently in progress
+// Query: ?limit=6
+// ============================================
+router.get('/matches/live', async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit) || 6, 20);
+        const now = new Date();
+        const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
+        const matches = await Match.find({
+            isActive: true,
+            commenceTime: { $lte: now, $gte: threeHoursAgo }
+        })
+            .sort({ commenceTime: -1 })  // most recent first
+            .limit(limit)
+            .lean();
+
+        res.json({
+            matches,
+            count: matches.length
+        });
+    } catch (err) {
+        console.error('Live matches error:', err);
+        res.status(500).json({ error: 'Failed to load live matches.' });
+    }
+});
+
+// ============================================
+// GET /api/sports/leagues — list leagues with counts
 // ============================================
 router.get('/leagues', async (req, res) => {
     try {
         const priorityMap = getPriorityMap();
         const now = new Date();
 
-        // Only count upcoming matches (commenceTime in future)
         const leagues = await Match.aggregate([
             {
                 $match: {
@@ -268,13 +343,11 @@ router.get('/matches/:externalId', async (req, res) => {
 
 // ============================================
 // POST /api/sports/bets — place a bet
-// Body: { userId, stake, selections: [{ matchExternalId, pick }] }
 // ============================================
 router.post('/bets', async (req, res) => {
     try {
         const { userId, stake, selections } = req.body;
 
-        // ---------- Validation ----------
         if (!userId || !stake || !Array.isArray(selections) || selections.length === 0) {
             return res.status(400).json({ error: 'userId, stake, and selections are required.' });
         }
@@ -292,14 +365,12 @@ router.post('/bets', async (req, res) => {
             return res.status(403).json({ error: 'You are self-excluded from betting.' });
         }
 
-        // ---------- Check for duplicate matches ----------
         const matchIds = selections.map(s => s.matchExternalId);
         const uniqueIds = new Set(matchIds);
         if (uniqueIds.size !== matchIds.length) {
             return res.status(400).json({ error: 'Cannot have two picks from the same match.' });
         }
 
-        // ---------- Build selection details ----------
         const detailedSelections = [];
         let totalOdds = 1;
 
@@ -326,7 +397,6 @@ router.post('/bets', async (req, res) => {
                 });
             }
 
-            // Multiply into accumulator (correct math)
             totalOdds *= odds;
 
             detailedSelections.push({
@@ -341,25 +411,19 @@ router.post('/bets', async (req, res) => {
             });
         }
 
-        // ---------- Compute payout ----------
-        // totalOdds = product of all selection odds
-        // Example: 1.20 × 10.30 = 12.36 (NOT 11.50)
         if (totalOdds > 10000) totalOdds = 10000;
         totalOdds = safeFixed(totalOdds);
         const potentialPayout = safeFixed(amt * totalOdds);
 
-        // ---------- Balance check ----------
         if (user.balance < amt) {
             return res.status(400).json({
                 error: `Insufficient balance. Available: KES ${safeFixed(user.balance)}`
             });
         }
 
-        // ---------- Deduct balance ----------
         user.balance = safeFixed(user.balance - amt);
         await user.save();
 
-        // ---------- Create bet ----------
         const betType = detailedSelections.length === 1 ? 'single' : 'accumulator';
         const bet = await SportsBet.create({
             userId: user._id,
@@ -372,7 +436,6 @@ router.post('/bets', async (req, res) => {
             totalSelections: detailedSelections.length
         });
 
-        // ---------- Audit log ----------
         try {
             await AuditLog.create({
                 action: 'SPORTSBET_PLACED',
@@ -446,7 +509,7 @@ router.get('/bets/single/:betId', async (req, res) => {
 });
 
 // ============================================
-// GET /api/sports/stats — platform-wide sports stats
+// GET /api/sports/stats
 // ============================================
 router.get('/stats', async (req, res) => {
     try {
@@ -476,7 +539,7 @@ router.get('/stats', async (req, res) => {
 });
 
 // ============================================
-// POST /api/sports/admin/refresh — force refresh
+// POST /api/sports/admin/refresh
 // ============================================
 router.post('/admin/refresh', async (req, res) => {
     try {
@@ -516,7 +579,6 @@ router.post('/admin/refresh-one', async (req, res) => {
 
 // ============================================
 // POST /api/sports/admin/reset-statuses
-// Utility to recompute DB `status` field from commenceTime
 // ============================================
 router.post('/admin/reset-statuses', async (req, res) => {
     try {
