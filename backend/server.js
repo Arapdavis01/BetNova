@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
@@ -9,15 +10,56 @@ const authRoutes = require('./routes/auth');
 const User = require('./models/User');
 
 const app = express();
-app.use(cors());
+
+// ---------- CORS Configuration ----------
+const allowedOrigins = [
+    "http://localhost:3000",
+    "http://localhost:5000",
+    "http://127.0.0.1:5500",       // VS Code Live Server
+    "http://127.0.0.1:3000",
+    process.env.CLIENT_URL          // Production frontend URL
+].filter(Boolean);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, Postman)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+        return callback(null, true); // For school project — allow all
+    },
+    credentials: true
+}));
+
 app.use(express.json());
 
-// Mount authentication path routes
+// ---------- API Routes ----------
 app.use('/api', authRoutes);
 
+// ---------- Serve Frontend (Production) ----------
+if (process.env.NODE_ENV === 'production') {
+    const frontendPath = path.join(__dirname, '../frontend');
+    app.use(express.static(frontendPath));
+
+    // SPA fallback — send index.html for any non-API route
+    app.get(/^\/(?!api|socket\.io).*/, (req, res) => {
+        res.sendFile(path.join(frontendPath, 'index.html'));
+    });
+}
+
+// ---------- HTTP + Socket.IO Server ----------
 const server = http.createServer(app);
 const io = new Server(server, {
-    cors: { origin: "*" }
+    cors: {
+        origin: allowedOrigins,
+        methods: ["GET", "POST"],
+        credentials: true
+    },
+    // Render requires these for proper WebSocket handling
+    transports: ['websocket', 'polling'],
+    pingTimeout: 60000,
+    pingInterval: 25000
 });
 
 // ---------- Game State ----------
@@ -106,9 +148,12 @@ async function explodePlane() {
 
 // ---------- Socket Handling ----------
 io.on('connection', (socket) => {
+    console.log(`🔌 Client connected: ${socket.id}`);
+
     // Send initial snapshot
     socket.emit('betnova_tick', gameState);
     socket.emit('crash_history', crashHistory);
+    socket.emit('active_bets_count', activeBets.size);
 
     socket.on('place_bet', async ({ userId, amount }) => {
         try {
@@ -121,6 +166,9 @@ io.on('connection', (socket) => {
             const amt = parseFloat(amount);
             if (!amt || amt <= 0) {
                 return socket.emit('bet_error', 'Invalid bet amount.');
+            }
+            if (amt > 10000) {
+                return socket.emit('bet_error', 'Maximum bet is $10,000.');
             }
 
             const user = await User.findById(userId);
@@ -146,7 +194,7 @@ io.on('connection', (socket) => {
             });
             io.emit('active_bets_count', activeBets.size);
         } catch (err) {
-            console.error(err);
+            console.error('place_bet error:', err);
             socket.emit('bet_error', 'Server error while placing bet.');
         }
     });
@@ -181,12 +229,14 @@ io.on('connection', (socket) => {
                 type: 'success'
             });
         } catch (err) {
-            console.error(err);
+            console.error('cash_out error:', err);
             socket.emit('bet_error', 'Server error while cashing out.');
         }
     });
 
     socket.on('disconnect', async () => {
+        console.log(`🔌 Client disconnected: ${socket.id}`);
+
         // Refund pending bet if the round hasn't crashed yet
         const bet = activeBets.get(socket.id);
         if (bet && !bet.cashedOut && gameState.status !== 'CRASHED') {
@@ -206,9 +256,21 @@ io.on('connection', (socket) => {
 });
 
 // ---------- Bootstrap ----------
+const PORT = process.env.PORT || 5000;
+
 connectDB().then(() => {
-    server.listen(process.env.PORT || 5000, () => {
-        console.log(`🚀 BetNova core backend operating on port ${process.env.PORT || 5000}`);
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 BetNova core backend operating on port ${PORT}`);
+        console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
         runEngineLoop();
+    });
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully...');
+    server.close(() => {
+        console.log('Server closed.');
+        process.exit(0);
     });
 });
