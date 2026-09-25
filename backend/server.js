@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth');
+const paymentRoutes = require('./routes/payments');
 const User = require('./models/User');
 
 const app = express();
@@ -27,7 +28,7 @@ app.use(cors({
         if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
             return callback(null, true);
         }
-        return callback(null, true); // For school project — allow all
+        return callback(null, true); // Permissive for deployment flexibility
     },
     credentials: true
 }));
@@ -36,6 +37,7 @@ app.use(express.json());
 
 // ---------- API Routes ----------
 app.use('/api', authRoutes);
+app.use('/api/payhero', paymentRoutes);
 
 // ---------- Serve Frontend (Production) ----------
 if (process.env.NODE_ENV === 'production') {
@@ -56,7 +58,7 @@ const io = new Server(server, {
         methods: ["GET", "POST"],
         credentials: true
     },
-    // Render requires these for proper WebSocket handling
+    // Required for proper WebSocket handling behind Render's proxy
     transports: ['websocket', 'polling'],
     pingTimeout: 60000,
     pingInterval: 25000
@@ -75,6 +77,9 @@ const activeBets = new Map();
 
 // Recent crash history (last 20)
 const crashHistory = [];
+
+// Currency symbol (Kenya Shillings)
+const CURRENCY = 'KES';
 
 function generateCrashPoint() {
     if (Math.random() < 0.03) return 1.00; // 3% instant-crash house edge
@@ -134,7 +139,7 @@ async function explodePlane() {
         if (!bet.cashedOut) {
             io.to(sid).emit('bet_lost', { amount: bet.amount });
             io.emit('feed', {
-                msg: `${bet.username} lost $${bet.amount.toFixed(2)} (crashed at ${gameState.multiplier.toFixed(2)}x)`,
+                msg: `${bet.username} lost ${CURRENCY} ${bet.amount.toFixed(2)} (crashed at ${gameState.multiplier.toFixed(2)}x)`,
                 type: 'alert'
             });
         }
@@ -167,8 +172,11 @@ io.on('connection', (socket) => {
             if (!amt || amt <= 0) {
                 return socket.emit('bet_error', 'Invalid bet amount.');
             }
-            if (amt > 10000) {
-                return socket.emit('bet_error', 'Maximum bet is $10,000.');
+            if (amt < 10) {
+                return socket.emit('bet_error', `Minimum bet is ${CURRENCY} 10.`);
+            }
+            if (amt > 100000) {
+                return socket.emit('bet_error', `Maximum bet is ${CURRENCY} 100,000.`);
             }
 
             const user = await User.findById(userId);
@@ -189,7 +197,7 @@ io.on('connection', (socket) => {
             socket.emit('balance_update', user.balance);
             socket.emit('bet_placed', { amount: amt });
             io.emit('feed', {
-                msg: `${user.username} placed $${amt.toFixed(2)}`,
+                msg: `${user.username} placed ${CURRENCY} ${amt.toFixed(2)}`,
                 type: 'info'
             });
             io.emit('active_bets_count', activeBets.size);
@@ -225,7 +233,7 @@ io.on('connection', (socket) => {
                 multiplier: gameState.multiplier
             });
             io.emit('feed', {
-                msg: `${bet.username} cashed out at ${gameState.multiplier.toFixed(2)}x for $${payout.toFixed(2)}`,
+                msg: `${bet.username} cashed out at ${gameState.multiplier.toFixed(2)}x for ${CURRENCY} ${payout.toFixed(2)}`,
                 type: 'success'
             });
         } catch (err) {
@@ -262,6 +270,7 @@ connectDB().then(() => {
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`🚀 BetNova core backend operating on port ${PORT}`);
         console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`💳 PayHero integration: ${process.env.PAYHERO_USERNAME ? 'ENABLED' : 'DISABLED'}`);
         runEngineLoop();
     });
 });
