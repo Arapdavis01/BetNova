@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#0a0e1a">
-    <title>Sports Betting — BetNova</title>
+    <title>Soccer Betting — BetNova</title>
     <meta name="description" content="Bet on EPL, La Liga, Champions League and more. Instant M-Pesa deposits.">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
@@ -29,13 +29,13 @@
             <a href="/" class="spo-logo">
                 <span class="spo-logo-red">Bet</span><span class="spo-logo-white">Nova</span>
             </a>
-            <span class="spo-page-tag">Sports</span>
+            <span class="spo-page-tag">Soccer</span>
         </div>
 
         <!-- CENTER: Desktop Quick Nav -->
         <nav class="spo-quick-nav">
             <a href="/" title="Home"><i class="fa-solid fa-house"></i><span>Home</span></a>
-            <a href="/sports" class="active" title="Sports"><i class="fa-solid fa-futbol"></i><span>Sports</span></a>
+            <a href="/soccer" class="active" title="Soccer"><i class="fa-solid fa-futbol"></i><span>Soccer</span></a>
             <a href="/aviator" title="Aviator"><i class="fa-solid fa-plane-up"></i><span>Aviator</span></a>
             <a href="/cashier" title="Cashier"><i class="fa-solid fa-wallet"></i><span>Cashier</span></a>
             <a href="/promotions" title="Promos"><i class="fa-solid fa-gift"></i><span>Promos</span></a>
@@ -66,7 +66,7 @@
 <!-- ============================================ -->
 <main class="spo-layout">
 
-    <!-- ============ LEFT: SIDEBAR (sports/leagues) ============ -->
+    <!-- ============ LEFT: SIDEBAR (leagues) ============ -->
     <aside class="spo-sidebar" id="sports-sidebar">
         <div class="spo-sidebar-header">
             <h3>Leagues</h3>
@@ -121,6 +121,9 @@
         <!-- Filters bar -->
         <div class="spo-filters-bar">
             <div class="spo-date-tabs">
+                <button class="spo-date-tab" data-range="live" onclick="setDateRange('live')">
+                    <span class="spo-live-dot"></span> Live
+                </button>
                 <button class="spo-date-tab active" data-range="today" onclick="setDateRange('today')">
                     Today
                 </button>
@@ -229,9 +232,9 @@
         <i class="fa-solid fa-house"></i>
         <span>Home</span>
     </a>
-    <a href="/sports" class="spo-bottom-item active">
+    <a href="/soccer" class="spo-bottom-item active">
         <i class="fa-solid fa-futbol"></i>
-        <span>Sports</span>
+        <span>Soccer</span>
     </a>
     <a href="/aviator" class="spo-bottom-item">
         <i class="fa-solid fa-plane-up"></i>
@@ -253,7 +256,7 @@
 <div id="mybets-modal" class="spo-modal hidden">
     <div class="spo-modal-card spo-modal-wide">
         <button class="spo-modal-close" onclick="closeMyBets()" aria-label="Close">&times;</button>
-        <h3>My Sports Bets</h3>
+        <h3>My Soccer Bets</h3>
         <p class="spo-modal-sub">Recent bets and their statuses</p>
         <div id="mybets-list" class="spo-mybets-list">
             <div class="spo-loading">
