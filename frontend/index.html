@@ -50,7 +50,7 @@
 
             <!-- Logged in -->
             <div id="shell-user-zone" class="shell-user-zone hidden">
-                <div class="shell-wallet-chip" onclick="openModal('deposit-modal')">
+                <div class="shell-wallet-chip" onclick="location.href='/cashier'" title="Open Cashier">
                     <i class="fa-solid fa-wallet"></i>
                     <span id="shell-balance">0.00</span>
                     <span class="shell-currency">KES</span>
@@ -65,6 +65,9 @@
                             <p class="shell-user-menu-label">Signed in as</p>
                             <p id="shell-username" class="shell-user-menu-name">User</p>
                         </div>
+                        <button class="shell-user-menu-item" onclick="location.href='/cashier'">
+                            <i class="fa-solid fa-wallet"></i> Cashier
+                        </button>
                         <button class="shell-user-menu-item" onclick="openModal('deposit-modal')">
                             <i class="fa-solid fa-credit-card"></i> Deposit
                         </button>
@@ -103,6 +106,7 @@
         <a href="/sports"><i class="fa-solid fa-futbol"></i> Sports <span class="badge-new">NEW</span></a>
         <a href="/aviator"><i class="fa-solid fa-plane-up"></i> Aviator</a>
         <a href="/crash"><i class="fa-solid fa-chart-line"></i> Crash</a>
+        <a href="/cashier"><i class="fa-solid fa-wallet"></i> Cashier</a>
         <a href="#"><i class="fa-solid fa-dice"></i> Casino</a>
         <a href="#"><i class="fa-solid fa-trophy"></i> Virtuals</a>
         <a href="#"><i class="fa-solid fa-gift"></i> Promotions</a>
@@ -116,6 +120,16 @@
 <!-- MAIN CONTENT -->
 <!-- ============================================ -->
 <main class="shell-main">
+
+    <!-- Referral banner (only shown if ?ref= was captured) -->
+    <div id="referral-banner" class="shell-referral-banner hidden">
+        <i class="fa-solid fa-gift"></i>
+        <span>You were referred! <strong>Sign up now and get KES 50 bonus</strong></span>
+        <button onclick="openModal('signup-modal')" class="shell-referral-cta">Claim</button>
+        <button onclick="dismissReferralBanner()" class="shell-referral-close" aria-label="Dismiss">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
 
     <!-- ============ HERO BANNER ============ -->
     <section class="shell-hero">
@@ -392,11 +406,11 @@
             <a href="#">Casino</a>
         </div>
         <div class="shell-footer-col">
-            <h4>Support</h4>
-            <a href="#">Help Center</a>
-            <a href="#">Contact Us</a>
-            <a href="#">FAQs</a>
-            <a href="#">Live Chat</a>
+            <h4>Account</h4>
+            <a href="/cashier">Cashier</a>
+            <a href="/cashier#referral">Refer & Earn</a>
+            <a href="/cashier#history">Transactions</a>
+            <a href="#" onclick="openModal('responsible-modal'); return false;">Responsible Gambling</a>
         </div>
         <div class="shell-footer-col">
             <h4>Legal</h4>
@@ -430,9 +444,9 @@
         <i class="fa-solid fa-plane-up"></i>
         <span>Aviator</span>
     </a>
-    <a href="#" class="shell-bottom-item" onclick="openModal('history-modal'); return false;">
-        <i class="fa-solid fa-clock-rotate-left"></i>
-        <span>My Bets</span>
+    <a href="/cashier" class="shell-bottom-item">
+        <i class="fa-solid fa-wallet"></i>
+        <span>Cashier</span>
     </a>
     <a href="#" class="shell-bottom-item" onclick="toggleUserMenu(); return false;">
         <i class="fa-solid fa-user"></i>
@@ -467,6 +481,15 @@
         <form onsubmit="handleAuth(event, 'signup')">
             <input id="signup-user" type="text" placeholder="Username (min 3 chars)" required minlength="3" class="shell-input">
             <input id="signup-pass" type="password" placeholder="Password (min 4 chars)" required minlength="4" class="shell-input">
+
+            <!-- Referral code (auto-filled from URL) -->
+            <div id="signup-ref-wrap" class="hidden">
+                <input id="signup-ref" type="text" readonly class="shell-input shell-input-ref">
+                <p class="shell-ref-hint">
+                    <i class="fa-solid fa-gift"></i> Using referral code — you'll get KES 50 bonus!
+                </p>
+            </div>
+
             <label class="shell-checkbox">
                 <input type="checkbox" required>
                 <span>I am 18+ and accept the Terms of Service</span>
@@ -481,9 +504,12 @@
         <button class="shell-modal-close" onclick="closeModal('deposit-modal')">&times;</button>
         <h3>Deposit Funds</h3>
         <p>Instant M-Pesa STK Push</p>
+        <label class="shell-input-label">Amount (KES)</label>
         <input type="number" id="deposit-amount" value="100" min="10" max="150000" step="10" class="shell-input">
+        <label class="shell-input-label">M-Pesa Phone Number</label>
         <input type="tel" id="deposit-phone" placeholder="0712345678" class="shell-input">
         <button onclick="handleDeposit()" class="shell-btn shell-btn-green shell-btn-full">Send M-Pesa Request</button>
+        <p class="shell-modal-hint">Minimum KES 10 · Maximum KES 150,000 per transaction</p>
     </div>
 </div>
 
@@ -492,9 +518,12 @@
         <button class="shell-modal-close" onclick="closeModal('withdraw-modal')">&times;</button>
         <h3>Withdraw Funds</h3>
         <p>Sent to M-Pesa within minutes</p>
+        <label class="shell-input-label">Amount (KES)</label>
         <input type="number" id="withdraw-amount" value="100" min="50" step="10" class="shell-input">
+        <label class="shell-input-label">M-Pesa Phone Number</label>
         <input type="tel" id="withdraw-phone" placeholder="0712345678" class="shell-input">
         <button onclick="handleWithdraw()" class="shell-btn shell-btn-green shell-btn-full">Withdraw to M-Pesa</button>
+        <p class="shell-modal-hint">Minimum KES 50 · Email verification required</p>
     </div>
 </div>
 
@@ -510,10 +539,13 @@
     <div class="shell-modal-card">
         <button class="shell-modal-close" onclick="closeModal('responsible-modal')">&times;</button>
         <h3>Responsible Gambling</h3>
-        <p>Set your limits</p>
-        <input type="number" id="limit-deposit" placeholder="Daily deposit limit (KES)" class="shell-input">
-        <input type="number" id="limit-wager" placeholder="Daily wager limit (KES)" class="shell-input">
+        <p>Set your daily limits</p>
+        <label class="shell-input-label">Daily Deposit Limit (KES)</label>
+        <input type="number" id="limit-deposit" placeholder="e.g., 5000" min="0" class="shell-input">
+        <label class="shell-input-label">Daily Wager Limit (KES)</label>
+        <input type="number" id="limit-wager" placeholder="e.g., 10000" min="0" class="shell-input">
         <button onclick="saveLimits()" class="shell-btn shell-btn-green shell-btn-full">Save Limits</button>
+        <p class="shell-modal-hint">Leave empty for no limit</p>
     </div>
 </div>
 
@@ -522,14 +554,23 @@
         <button class="shell-modal-close" onclick="closeModal('kyc-modal')">&times;</button>
         <h3>Verify Email</h3>
         <p>Required for withdrawals</p>
+
         <div id="kyc-step-1">
+            <label class="shell-input-label">Email Address</label>
             <input type="email" id="kyc-email" placeholder="you@example.com" class="shell-input">
             <button onclick="sendOTP()" class="shell-btn shell-btn-green shell-btn-full">Send Code</button>
         </div>
+
         <div id="kyc-step-2" class="hidden">
+            <label class="shell-input-label">6-digit Code</label>
             <input type="text" id="kyc-code" maxlength="6" placeholder="123456" class="shell-input shell-input-code">
             <button onclick="verifyOTP()" class="shell-btn shell-btn-green shell-btn-full">Verify</button>
+            <button onclick="resetKycModal()" class="shell-btn shell-btn-ghost shell-btn-full" style="margin-top: 6px;">
+                Use Different Email
+            </button>
         </div>
+
+        <p class="shell-modal-hint">Check spam folder if you don't see the email</p>
     </div>
 </div>
 
