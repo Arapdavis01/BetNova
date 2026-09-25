@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="aviator.css">
+    <link rel="stylesheet" href="/aviator/aviator.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -39,12 +39,21 @@
                 <a href="/crash" title="Crash" aria-label="Crash">
                     <i class="fa-solid fa-chart-line"></i>
                 </a>
+                <a href="/sports" title="Sports" aria-label="Sports">
+                    <i class="fa-solid fa-futbol"></i>
+                </a>
+                <a href="/cashier" title="Cashier" aria-label="Cashier">
+                    <i class="fa-solid fa-wallet"></i>
+                </a>
+                <a href="/promotions" title="Promotions" aria-label="Promotions">
+                    <i class="fa-solid fa-gift"></i>
+                </a>
             </nav>
         </div>
 
         <!-- RIGHT: Balance + actions -->
         <div class="avi-header-right">
-            <div class="avi-balance-chip" id="balance-chip" title="Your balance">
+            <div class="avi-balance-chip" id="balance-chip" title="Your balance" onclick="location.href='/cashier'">
                 <i class="fa-solid fa-wallet"></i>
                 <span id="balance-display">0.00</span>
                 <span class="avi-currency">KES</span>
@@ -113,9 +122,9 @@
             <span class="avi-jackpot-text">
                 Mfalme Wa Anga <strong>KES 400,000</strong> Daily Crown
             </span>
-            <button class="avi-jackpot-arrow" aria-label="Jackpot info">
+            <a href="/promotions#jackpots" class="avi-jackpot-arrow" aria-label="Jackpot info">
                 <i class="fa-solid fa-arrow-right"></i>
-            </button>
+            </a>
         </div>
 
         <!-- Crash history strip -->
@@ -282,13 +291,13 @@
         <i class="fa-solid fa-plane-up"></i>
         <span>Aviator</span>
     </a>
-    <a href="/crash" class="avi-bottom-item">
-        <i class="fa-solid fa-chart-line"></i>
-        <span>Crash</span>
+    <a href="/sports" class="avi-bottom-item">
+        <i class="fa-solid fa-futbol"></i>
+        <span>Sports</span>
     </a>
-    <a href="#" onclick="openModal('history-modal'); return false;" class="avi-bottom-item">
-        <i class="fa-solid fa-clock-rotate-left"></i>
-        <span>My Bets</span>
+    <a href="/cashier" class="avi-bottom-item">
+        <i class="fa-solid fa-wallet"></i>
+        <span>Cashier</span>
     </a>
     <a href="#" onclick="openModal('profile-modal'); return false;" class="avi-bottom-item">
         <i class="fa-solid fa-user"></i>
@@ -353,6 +362,9 @@
         <button class="avi-modal-close" onclick="closeModal('profile-modal')" aria-label="Close">&times;</button>
         <h3>Profile</h3>
         <p id="profile-name" class="avi-profile-name">—</p>
+        <button onclick="location.href='/cashier'" class="avi-modal-btn" style="margin-bottom: 8px;">
+            <i class="fa-solid fa-wallet"></i> Open Cashier
+        </button>
         <button onclick="handleLogout()" class="avi-modal-btn avi-modal-btn-danger">Log Out</button>
     </div>
 </div>
@@ -360,6 +372,6 @@
 <!-- Toast -->
 <div id="toast" class="avi-toast hidden"></div>
 
-<script src="aviator.js"></script>
+<script src="/aviator/aviator.js"></script>
 </body>
 </html>
