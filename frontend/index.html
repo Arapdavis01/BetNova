@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BetNova — Premium Gaming Platform</title>
-    <meta name="description" content="Play Aviator, Crash, and more. Provably fair. Instant M-Pesa deposits.">
+    <meta name="description" content="Play Aviator, Crash, Sports Betting and more. Provably fair. Instant M-Pesa deposits.">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -31,6 +31,7 @@
         <!-- Center: Desktop nav links -->
         <nav class="shell-nav-links">
             <a href="/" class="shell-nav-link active">Home</a>
+            <a href="/sports" class="shell-nav-link">Sports <span class="badge-new">NEW</span></a>
             <a href="/aviator" class="shell-nav-link">Aviator <span class="badge-new">NEW</span></a>
             <a href="/crash" class="shell-nav-link">Crash</a>
             <a href="#" class="shell-nav-link">Casino <span class="badge-new">NEW</span></a>
@@ -92,19 +93,20 @@
 <!-- Mobile slide-out menu -->
 <aside class="shell-mobile-menu" id="mobile-menu">
     <div class="shell-mobile-header">
-        <span class="shell-logo">
+        <a href="/" class="shell-logo">
             <span class="shell-logo-red">Bet</span><span class="shell-logo-white">Nova</span>
-        </span>
-        <button onclick="toggleMobileMenu()"><i class="fa-solid fa-xmark"></i></button>
+        </a>
+        <button onclick="toggleMobileMenu()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <nav class="shell-mobile-links">
         <a href="/"><i class="fa-solid fa-house"></i> Home</a>
+        <a href="/sports"><i class="fa-solid fa-futbol"></i> Sports <span class="badge-new">NEW</span></a>
         <a href="/aviator"><i class="fa-solid fa-plane-up"></i> Aviator</a>
         <a href="/crash"><i class="fa-solid fa-chart-line"></i> Crash</a>
         <a href="#"><i class="fa-solid fa-dice"></i> Casino</a>
-        <a href="#"><i class="fa-solid fa-futbol"></i> Virtuals</a>
+        <a href="#"><i class="fa-solid fa-trophy"></i> Virtuals</a>
         <a href="#"><i class="fa-solid fa-gift"></i> Promotions</a>
-        <a href="#"><i class="fa-solid fa-trophy"></i> Jackpots</a>
+        <a href="#"><i class="fa-solid fa-fire"></i> Jackpots</a>
         <a href="#"><i class="fa-solid fa-headset"></i> Support</a>
     </nav>
 </aside>
@@ -123,7 +125,7 @@
                     <i class="fa-solid fa-bolt"></i> INSTANT M-PESA
                 </span>
                 <h1>Play. Win. <span class="shell-hero-highlight">Cash Out.</span></h1>
-                <p>Kenya's fastest growing crash gaming platform. Provably fair. Instant deposits and withdrawals.</p>
+                <p>Kenya's fastest growing gaming platform. Sports betting, crash games, and casino — all in one place. Provably fair. Instant deposits and withdrawals.</p>
                 <div class="shell-hero-cta">
                     <a href="/aviator" class="shell-btn shell-btn-green shell-btn-lg">
                         <i class="fa-solid fa-plane-up"></i> Play Aviator
@@ -135,7 +137,7 @@
             </div>
             <div class="shell-hero-visual">
                 <div class="shell-hero-plane">
-                    <i class="fa-solid fa-plane"></i>
+                    <i class="fa-solid fa-plane-up"></i>
                 </div>
                 <div class="shell-hero-multiplier">3.35<span>x</span></div>
             </div>
@@ -195,6 +197,26 @@
                     <p>Spribe · Crash</p>
                     <div class="shell-game-players">
                         <i class="fa-solid fa-users"></i> 3,367 playing
+                    </div>
+                </div>
+            </a>
+
+            <!-- Sports Betting -->
+            <a href="/sports" class="shell-game-card shell-game-card-featured" data-cat="live">
+                <div class="shell-game-thumb" style="background: linear-gradient(135deg, #00c853, #00695c);">
+                    <div class="shell-game-badge-live">
+                        <span></span> LIVE
+                    </div>
+                    <div class="shell-game-icon">
+                        <i class="fa-solid fa-futbol"></i>
+                    </div>
+                    <div class="shell-game-multiplier">+87</div>
+                </div>
+                <div class="shell-game-info">
+                    <h3>Sports Betting</h3>
+                    <p>BetNova · Live Odds</p>
+                    <div class="shell-game-players">
+                        <i class="fa-solid fa-users"></i> 1,847 betting
                     </div>
                 </div>
             </a>
@@ -321,38 +343,7 @@
         </div>
 
         <div class="shell-live-wins" id="live-wins">
-            <div class="shell-win-card">
-                <div class="shell-win-avatar" style="background:#ef4444">J</div>
-                <div class="shell-win-info">
-                    <p class="shell-win-user">john****</p>
-                    <p class="shell-win-game">Aviator · 3.35x</p>
-                </div>
-                <div class="shell-win-amount">+KES 6,700</div>
-            </div>
-            <div class="shell-win-card">
-                <div class="shell-win-avatar" style="background:#10b981">M</div>
-                <div class="shell-win-info">
-                    <p class="shell-win-user">mary****</p>
-                    <p class="shell-win-game">JetX · 8.12x</p>
-                </div>
-                <div class="shell-win-amount">+KES 24,360</div>
-            </div>
-            <div class="shell-win-card">
-                <div class="shell-win-avatar" style="background:#3b82f6">D</div>
-                <div class="shell-win-info">
-                    <p class="shell-win-user">danc****</p>
-                    <p class="shell-win-game">Aviator · 1.87x</p>
-                </div>
-                <div class="shell-win-amount">+KES 3,740</div>
-            </div>
-            <div class="shell-win-card">
-                <div class="shell-win-avatar" style="background:#f59e0b">A</div>
-                <div class="shell-win-info">
-                    <p class="shell-win-user">alex****</p>
-                    <p class="shell-win-game">Crash · 2.41x</p>
-                </div>
-                <div class="shell-win-amount">+KES 4,820</div>
-            </div>
+            <!-- Rendered by shell.js from real feed events, with fallback examples -->
         </div>
     </section>
 
@@ -390,15 +381,15 @@
     <div class="shell-footer-inner">
         <div class="shell-footer-col">
             <h4>BetNova</h4>
-            <p>Kenya's fastest growing crash gaming platform. Provably fair. Instant M-Pesa.</p>
+            <p>Kenya's fastest growing gaming platform. Provably fair. Instant M-Pesa.</p>
             <p class="shell-footer-license">Licensed by BCLB · License #BCLB/2026/XXXX</p>
         </div>
         <div class="shell-footer-col">
             <h4>Games</h4>
+            <a href="/sports">Sports</a>
             <a href="/aviator">Aviator</a>
             <a href="/crash">Crash</a>
             <a href="#">Casino</a>
-            <a href="#">Virtuals</a>
         </div>
         <div class="shell-footer-col">
             <h4>Support</h4>
@@ -431,13 +422,13 @@
         <i class="fa-solid fa-house"></i>
         <span>Home</span>
     </a>
+    <a href="/sports" class="shell-bottom-item">
+        <i class="fa-solid fa-futbol"></i>
+        <span>Sports</span>
+    </a>
     <a href="/aviator" class="shell-bottom-item">
         <i class="fa-solid fa-plane-up"></i>
         <span>Aviator</span>
-    </a>
-    <a href="/crash" class="shell-bottom-item">
-        <i class="fa-solid fa-chart-line"></i>
-        <span>Crash</span>
     </a>
     <a href="#" class="shell-bottom-item" onclick="openModal('history-modal'); return false;">
         <i class="fa-solid fa-clock-rotate-left"></i>
@@ -490,7 +481,7 @@
         <button class="shell-modal-close" onclick="closeModal('deposit-modal')">&times;</button>
         <h3>Deposit Funds</h3>
         <p>Instant M-Pesa STK Push</p>
-        <input type="number" id="deposit-amount" value="100" min="10" class="shell-input">
+        <input type="number" id="deposit-amount" value="100" min="10" max="150000" step="10" class="shell-input">
         <input type="tel" id="deposit-phone" placeholder="0712345678" class="shell-input">
         <button onclick="handleDeposit()" class="shell-btn shell-btn-green shell-btn-full">Send M-Pesa Request</button>
     </div>
@@ -501,7 +492,7 @@
         <button class="shell-modal-close" onclick="closeModal('withdraw-modal')">&times;</button>
         <h3>Withdraw Funds</h3>
         <p>Sent to M-Pesa within minutes</p>
-        <input type="number" id="withdraw-amount" value="100" min="50" class="shell-input">
+        <input type="number" id="withdraw-amount" value="100" min="50" step="10" class="shell-input">
         <input type="tel" id="withdraw-phone" placeholder="0712345678" class="shell-input">
         <button onclick="handleWithdraw()" class="shell-btn shell-btn-green shell-btn-full">Withdraw to M-Pesa</button>
     </div>
