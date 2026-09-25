@@ -470,3 +470,85 @@ html, body {
     .promo-jackpots-grid { grid-template-columns: 1fr; }
     .promo-grid { grid-template-columns: 1fr; }
 }
+/* ============================================
+   Header left with quick-nav
+   ============================================ */
+.promo-header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.promo-quick-nav {
+    display: flex;
+    gap: 4px;
+}
+.promo-quick-nav a {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: all 0.15s;
+    background: rgba(255, 255, 255, 0.02);
+}
+.promo-quick-nav a:hover {
+    color: var(--green);
+    background: rgba(0, 200, 83, 0.08);
+}
+.promo-quick-nav a i { font-size: 13px; }
+
+/* ============================================
+   Balance chip clickable
+   ============================================ */
+.promo-balance-chip {
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.promo-balance-chip:hover {
+    border-color: var(--green);
+    transform: translateY(-1px);
+}
+
+/* ============================================
+   Mobile bottom nav
+   ============================================ */
+.promo-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #05080f;
+    border-top: 1px solid var(--border);
+    z-index: 90;
+    padding: 6px 0 8px;
+}
+.promo-bottom-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 0;
+    color: var(--text-mute);
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: 600;
+    transition: color 0.15s;
+}
+.promo-bottom-item i { font-size: 16px; }
+.promo-bottom-item.active { color: var(--green); }
+.promo-bottom-item:active { transform: scale(0.95); }
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media (max-width: 900px) {
+    .promo-quick-nav { display: none; }
+    .promo-bottom-nav { display: flex; }
+    .promo-layout { padding-bottom: 90px; }
+}
