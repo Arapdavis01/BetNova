@@ -2,131 +2,699 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BetNova Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body { background: #0a0e1a; color: white; font-family: 'Inter', sans-serif; }
+        body { background: #0a0e1a; color: white; font-family: 'Inter', -apple-system, sans-serif; }
         .card { background: #0f1420; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 20px; }
+        .tab-btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .tab-btn.active { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .tab-btn:not(.active) { color: #94a3b8; }
+        .tab-btn:not(.active):hover { color: white; background: rgba(255,255,255,0.04); }
+        .btn-danger { background: #ef4444; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+        .btn-success { background: #10b981; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+        .btn-ghost { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .input-field { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; color: white; font-size: 13px; width: 100%; }
+        .input-field:focus { outline: none; border-color: #ef4444; }
+        .badge { padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+        .badge-active { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .badge-suspended { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+        .badge-banned { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .badge-open { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        .badge-resolved { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        @media (max-width: 768px) {
+            .grid-cols-4 { grid-template-columns: repeat(2, 1fr); }
+            .grid-cols-2 { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
-<body class="p-6">
-    <div class="max-w-7xl mx-auto">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-black">BetNova Admin</h1>
-            <button onclick="logout()" class="text-sm text-gray-400 hover:text-red-400">Logout</button>
+<body class="p-4 md:p-6">
+
+<div class="max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6 flex-wrap gap-2">
+        <div class="flex items-center gap-3">
+            <h1 class="text-2xl md:text-3xl font-black">
+                <span class="text-red-500">Bet</span>Nova Admin
+            </h1>
+            <span id="live-indicator" class="hidden items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30 rounded-full px-2 py-0.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Live
+            </span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="refreshAll()" class="btn-ghost">
+                <i class="fa-solid fa-rotate"></i> Refresh
+            </button>
+            <button onclick="logout()" class="btn-ghost text-red-400">
+                <i class="fa-solid fa-right-from-bracket"></i> Logout
+            </button>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="card max-w-md mx-auto mt-20">
+        <div class="text-center mb-6">
+            <i class="fa-solid fa-shield-halved text-4xl text-red-500"></i>
+            <h2 class="text-xl font-bold mt-3">Admin Login</h2>
+            <p class="text-xs text-gray-400 mt-1">Enter your admin token to continue</p>
+        </div>
+        <input id="admin-token" type="password" placeholder="Admin token"
+               class="input-field mb-3">
+        <button onclick="login()" class="w-full bg-red-600 hover:bg-red-700 py-2.5 rounded-lg font-bold transition">
+            <i class="fa-solid fa-key"></i> Enter Dashboard
+        </button>
+        <p class="text-[10px] text-gray-500 text-center mt-3">
+            Token stored locally · Never shared with third parties
+        </p>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="hidden">
+
+        <!-- Navigation Tabs -->
+        <div class="flex gap-2 mb-4 overflow-x-auto pb-2">
+            <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">
+                <i class="fa-solid fa-chart-line"></i> Overview
+            </button>
+            <button class="tab-btn" data-tab="users" onclick="switchTab('users')">
+                <i class="fa-solid fa-users"></i> Users
+            </button>
+            <button class="tab-btn" data-tab="rounds" onclick="switchTab('rounds')">
+                <i class="fa-solid fa-plane-up"></i> Rounds
+            </button>
+            <button class="tab-btn" data-tab="tickets" onclick="switchTab('tickets')">
+                <i class="fa-solid fa-headset"></i> Support
+            </button>
+            <button class="tab-btn" data-tab="audit" onclick="switchTab('audit')">
+                <i class="fa-solid fa-list"></i> Audit
+            </button>
         </div>
 
-        <div id="login-screen" class="card max-w-md mx-auto mt-20">
-            <h2 class="text-xl font-bold mb-4">Admin Login</h2>
-            <input id="admin-token" type="password" placeholder="Admin token" 
-                   class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 mb-3 text-white">
-            <button onclick="login()" class="w-full bg-red-600 hover:bg-red-700 py-2 rounded font-bold">Enter</button>
-        </div>
-
-        <div id="dashboard" class="hidden">
-            <div class="grid grid-cols-4 gap-4 mb-6">
+        <!-- ============ TAB: OVERVIEW ============ -->
+        <div id="tab-overview" class="tab-content">
+            <div class="grid grid-cols-4 gap-3 md:gap-4 mb-6">
                 <div class="card">
-                    <p class="text-xs text-gray-400">Total Users</p>
-                    <p id="stat-users" class="text-3xl font-black text-white mt-1">—</p>
+                    <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Total Users</p>
+                    <p id="stat-users" class="text-2xl md:text-3xl font-black text-white mt-1">—</p>
                 </div>
                 <div class="card">
-                    <p class="text-xs text-gray-400">Active 24h</p>
-                    <p id="stat-active" class="text-3xl font-black text-green-400 mt-1">—</p>
+                    <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Active 24h</p>
+                    <p id="stat-active" class="text-2xl md:text-3xl font-black text-green-400 mt-1">—</p>
                 </div>
                 <div class="card">
-                    <p class="text-xs text-gray-400">Wagered 24h</p>
-                    <p id="stat-wagered" class="text-3xl font-black text-white mt-1">—</p>
+                    <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Wagered 24h</p>
+                    <p id="stat-wagered" class="text-2xl md:text-3xl font-black text-white mt-1">—</p>
                 </div>
                 <div class="card">
-                    <p class="text-xs text-gray-400">House Profit 24h</p>
-                    <p id="stat-profit" class="text-3xl font-black text-green-400 mt-1">—</p>
+                    <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">House Profit 24h</p>
+                    <p id="stat-profit" class="text-2xl md:text-3xl font-black text-green-400 mt-1">—</p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="grid grid-cols-2 gap-3 md:gap-4 mb-6">
                 <div class="card">
-                    <p class="text-xs text-gray-400">Deposits 24h</p>
-                    <p id="stat-deposits" class="text-2xl font-black text-white mt-1">—</p>
+                    <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Deposits 24h</p>
+                    <p id="stat-deposits" class="text-xl md:text-2xl font-black text-white mt-1">—</p>
                 </div>
                 <div class="card">
-                    <p class="text-xs text-gray-400">Withdrawals 24h</p>
-                    <p id="stat-withdrawals" class="text-2xl font-black text-white mt-1">—</p>
+                    <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Withdrawals 24h</p>
+                    <p id="stat-withdrawals" class="text-xl md:text-2xl font-black text-white mt-1">—</p>
                 </div>
             </div>
 
             <div class="card mb-6">
-                <h2 class="font-bold mb-3">Recent Rounds</h2>
-                <div id="rounds-list" class="text-sm font-mono">Loading...</div>
+                <h2 class="font-bold mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-bolt text-yellow-400"></i> Live Game State
+                </h2>
+                <div class="text-sm font-mono" id="game-state">Loading...</div>
             </div>
 
             <div class="card">
-                <h2 class="font-bold mb-3">Audit Log</h2>
-                <div id="audit-list" class="text-xs max-h-96 overflow-y-auto">Loading...</div>
+                <h2 class="font-bold mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-red-400"></i> Recent Rounds
+                </h2>
+                <div id="rounds-list" class="text-sm font-mono max-h-96 overflow-y-auto">Loading...</div>
+            </div>
+        </div>
+
+        <!-- ============ TAB: USERS ============ -->
+        <div id="tab-users" class="tab-content hidden">
+            <div class="card">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <h2 class="font-bold">Users</h2>
+                    <input type="text" id="user-search" placeholder="Search username..."
+                           class="input-field max-w-xs" oninput="filterUsers()">
+                </div>
+                <div id="users-list" class="text-sm">Loading...</div>
+            </div>
+        </div>
+
+        <!-- ============ TAB: ROUNDS ============ -->
+        <div id="tab-rounds" class="tab-content hidden">
+            <div class="card">
+                <h2 class="font-bold mb-4">All Rounds</h2>
+                <div id="rounds-full" class="text-sm font-mono max-h-[600px] overflow-y-auto">Loading...</div>
+            </div>
+        </div>
+
+        <!-- ============ TAB: TICKETS ============ -->
+        <div id="tab-tickets" class="tab-content hidden">
+            <div class="card">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-bold">Support Tickets</h2>
+                    <select id="ticket-filter" class="input-field max-w-xs" onchange="loadTickets()">
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </div>
+                <div id="tickets-list" class="text-sm">Loading...</div>
+            </div>
+        </div>
+
+        <!-- ============ TAB: AUDIT ============ -->
+        <div id="tab-audit" class="tab-content hidden">
+            <div class="card">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-bold">Audit Log</h2>
+                    <input type="text" id="audit-search" placeholder="Filter action..."
+                           class="input-field max-w-xs" oninput="filterAudit()">
+                </div>
+                <div id="audit-list" class="text-xs max-h-[600px] overflow-y-auto">Loading...</div>
             </div>
         </div>
     </div>
+</div>
 
-    <script>
-        let ADMIN_TOKEN = localStorage.getItem('admin_token') || '';
-        const API = window.location.origin;
+<!-- User Action Modal -->
+<div id="user-action-modal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="card max-w-md w-full relative">
+        <button onclick="closeUserModal()" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl">&times;</button>
+        <h3 class="font-bold text-lg mb-1" id="ua-title">User Actions</h3>
+        <p class="text-xs text-gray-400 mb-4" id="ua-username">—</p>
 
-        function login() {
-            ADMIN_TOKEN = document.getElementById('admin-token').value;
-            localStorage.setItem('admin_token', ADMIN_TOKEN);
-            loadDashboard();
+        <label class="block text-xs text-gray-400 uppercase tracking-wider font-bold mb-1">Balance Adjustment (KES)</label>
+        <input type="number" id="ua-amount" placeholder="e.g., 100 or -50" class="input-field mb-3">
+
+        <label class="block text-xs text-gray-400 uppercase tracking-wider font-bold mb-1">Reason</label>
+        <input type="text" id="ua-reason" placeholder="e.g., Customer support credit" class="input-field mb-4">
+
+        <div class="grid grid-cols-2 gap-2 mb-3">
+            <button onclick="adjustBalance()" class="btn-success">
+                <i class="fa-solid fa-money-bill"></i> Adjust Balance
+            </button>
+            <button onclick="suspendUser('suspended')" class="btn-ghost">
+                <i class="fa-solid fa-pause"></i> Suspend
+            </button>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="suspendUser('banned')" class="btn-danger">
+                <i class="fa-solid fa-ban"></i> Ban
+            </button>
+            <button onclick="suspendUser('active')" class="btn-success">
+                <i class="fa-solid fa-check"></i> Reactivate
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Ticket Action Modal -->
+<div id="ticket-action-modal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="card max-w-lg w-full relative">
+        <button onclick="closeTicketModal()" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl">&times;</button>
+        <h3 class="font-bold text-lg mb-1" id="tk-subject">Ticket</h3>
+        <p class="text-xs text-gray-400 mb-3" id="tk-meta">—</p>
+
+        <div class="bg-black/30 rounded p-3 mb-4 text-sm" id="tk-message">—</div>
+
+        <label class="block text-xs text-gray-400 uppercase tracking-wider font-bold mb-1">Response</label>
+        <textarea id="tk-response" rows="4" class="input-field mb-3" style="resize:none;"></textarea>
+
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="respondTicket('resolved')" class="btn-success">
+                <i class="fa-solid fa-check"></i> Resolve
+            </button>
+            <button onclick="respondTicket('in_progress')" class="btn-ghost">
+                <i class="fa-solid fa-clock"></i> Mark In Progress
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let ADMIN_TOKEN = localStorage.getItem('admin_token') || '';
+    let currentTab = 'overview';
+    let allUsers = [];
+    let allAudit = [];
+    let activeUserId = null;
+    let activeTicketId = null;
+    let refreshInterval = null;
+    const API = window.location.origin;
+
+    // ============================================
+    // AUTH
+    // ============================================
+    function login() {
+        ADMIN_TOKEN = document.getElementById('admin-token').value.trim();
+        if (!ADMIN_TOKEN) return alert('Enter a token');
+        localStorage.setItem('admin_token', ADMIN_TOKEN);
+        loadDashboard();
+    }
+
+    function logout() {
+        localStorage.removeItem('admin_token');
+        if (refreshInterval) clearInterval(refreshInterval);
+        location.reload();
+    }
+
+    async function fetchAdmin(path) {
+        const res = await fetch(`${API}/api/admin${path}`, {
+            headers: { 'X-Admin-Token': ADMIN_TOKEN }
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    }
+
+    // ============================================
+    // DASHBOARD LOAD
+    // ============================================
+    async function loadDashboard() {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
+        document.getElementById('live-indicator').classList.remove('hidden');
+        document.getElementById('live-indicator').classList.add('flex');
+
+        await refreshAll();
+
+        // Auto-refresh every 30s
+        if (refreshInterval) clearInterval(refreshInterval);
+        refreshInterval = setInterval(refreshAll, 30000);
+    }
+
+    async function refreshAll() {
+        try {
+            await loadStats();
+            if (currentTab === 'overview') await loadRoundsPreview();
+            if (currentTab === 'rounds') await loadFullRounds();
+            if (currentTab === 'users') await loadUsers();
+            if (currentTab === 'tickets') await loadTickets();
+            if (currentTab === 'audit') await loadAudit();
+        } catch (err) {
+            console.error(err);
+            alert('Auth failed — please log in again');
+            logout();
         }
+    }
 
-        function logout() {
-            localStorage.removeItem('admin_token');
-            location.reload();
-        }
+    // ============================================
+    // TAB SWITCHING
+    // ============================================
+    function switchTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.tab === tab);
+        });
+        document.querySelectorAll('.tab-content').forEach(c => {
+            c.classList.add('hidden');
+        });
+        document.getElementById(`tab-${tab}`).classList.remove('hidden');
 
-        async function fetchAdmin(path) {
-            const res = await fetch(`${API}/api/admin${path}`, {
-                headers: { 'X-Admin-Token': ADMIN_TOKEN }
-            });
-            if (!res.ok) throw new Error(await res.text());
-            return res.json();
-        }
+        // Load data for the tab
+        if (tab === 'overview') loadRoundsPreview();
+        if (tab === 'rounds') loadFullRounds();
+        if (tab === 'users') loadUsers();
+        if (tab === 'tickets') loadTickets();
+        if (tab === 'audit') loadAudit();
+    }
 
-        async function loadDashboard() {
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
+    // ============================================
+    // STATS
+    // ============================================
+    async function loadStats() {
+        const stats = await fetchAdmin('/stats');
+        document.getElementById('stat-users').innerText = stats.users.total;
+        document.getElementById('stat-active').innerText = stats.users.active24h;
+        document.getElementById('stat-wagered').innerText = `KES ${Math.round(stats.bets24h.wagered).toLocaleString()}`;
+        document.getElementById('stat-profit').innerText = `KES ${Math.round(stats.bets24h.houseProfit).toLocaleString()}`;
+        document.getElementById('stat-deposits').innerText = `${stats.deposits24h.count} · KES ${Math.round(stats.deposits24h.total).toLocaleString()}`;
+        document.getElementById('stat-withdrawals').innerText = `${stats.withdrawals24h.count} · KES ${Math.round(stats.withdrawals24h.total).toLocaleString()}`;
 
-            try {
-                const stats = await fetchAdmin('/stats');
-                document.getElementById('stat-users').innerText = stats.users.total;
-                document.getElementById('stat-active').innerText = stats.users.active24h;
-                document.getElementById('stat-wagered').innerText = `KES ${stats.bets24h.wagered.toLocaleString()}`;
-                document.getElementById('stat-profit').innerText = `KES ${stats.bets24h.houseProfit.toLocaleString()}`;
-                document.getElementById('stat-deposits').innerText = `${stats.deposits24h.count} · KES ${stats.deposits24h.total.toLocaleString()}`;
-                document.getElementById('stat-withdrawals').innerText = `${stats.withdrawals24h.count} · KES ${stats.withdrawals24h.total.toLocaleString()}`;
-
-                const rounds = await fetchAdmin('/rounds?limit=20');
-                document.getElementById('rounds-list').innerHTML = rounds.map(r => `
-                    <div class="flex justify-between py-1 border-b border-white/5">
-                        <span>#${r.roundId}</span>
-                        <span class="text-yellow-400">${r.crashPoint?.toFixed(2)}x</span>
-                        <span class="text-gray-500">${new Date(r.createdAt).toLocaleTimeString()}</span>
+        // Live game state
+        try {
+            const gameState = await fetchAdmin('/game-state').catch(() => null);
+            if (gameState) {
+                document.getElementById('game-state').innerHTML = `
+                    <div class="flex justify-between py-1">
+                        <span class="text-gray-400">Status:</span>
+                        <span class="font-bold">${gameState.status}</span>
                     </div>
-                `).join('');
-
-                const audit = await fetchAdmin('/audit?limit=50');
-                document.getElementById('audit-list').innerHTML = audit.map(a => `
-                    <div class="flex justify-between py-1 border-b border-white/5">
-                        <span class="text-red-400">${a.action}</span>
-                        <span class="text-gray-300">${a.username || 'system'}</span>
-                        <span class="text-gray-500">${new Date(a.createdAt).toLocaleString()}</span>
+                    <div class="flex justify-between py-1">
+                        <span class="text-gray-400">Round:</span>
+                        <span class="font-bold">#${gameState.roundId}</span>
                     </div>
-                `).join('');
-            } catch (err) {
-                alert('Admin auth failed');
-                localStorage.removeItem('admin_token');
-                location.reload();
+                    <div class="flex justify-between py-1">
+                        <span class="text-gray-400">Multiplier:</span>
+                        <span class="font-bold text-yellow-400">${gameState.multiplier.toFixed(2)}x</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span class="text-gray-400">Timer:</span>
+                        <span class="font-bold">${gameState.timer}s</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span class="text-gray-400">Active Bets:</span>
+                        <span class="font-bold text-green-400">${gameState.activeBets || 0}</span>
+                    </div>
+                `;
             }
+        } catch (_) {}
+    }
+
+    // ============================================
+    // ROUNDS
+    // ============================================
+    async function loadRoundsPreview() {
+        const rounds = await fetchAdmin('/rounds?limit=10');
+        document.getElementById('rounds-list').innerHTML = rounds.map(r => `
+            <div class="flex justify-between py-1.5 border-b border-white/5">
+                <span class="text-gray-500">#${r.roundId}</span>
+                <span class="text-yellow-400 font-bold">${r.crashPoint?.toFixed(2) || '—'}x</span>
+                <span class="text-gray-500 text-xs">${new Date(r.createdAt).toLocaleTimeString()}</span>
+            </div>
+        `).join('') || '<p class="text-gray-500 text-center py-4">No rounds yet</p>';
+    }
+
+    async function loadFullRounds() {
+        const rounds = await fetchAdmin('/rounds?limit=100');
+        document.getElementById('rounds-full').innerHTML = rounds.map(r => `
+            <div class="flex justify-between py-1.5 border-b border-white/5">
+                <span class="text-gray-500">#${r.roundId}</span>
+                <span class="text-yellow-400 font-bold">${r.crashPoint?.toFixed(2) || '—'}x</span>
+                <span class="text-gray-500 text-xs">${new Date(r.createdAt).toLocaleString()}</span>
+                <span class="text-xs ${r.revealed ? 'text-green-400' : 'text-gray-500'}">
+                    ${r.revealed ? '✓' : '⏳'}
+                </span>
+            </div>
+        `).join('') || '<p class="text-gray-500 text-center py-4">No rounds yet</p>';
+    }
+
+    // ============================================
+    // USERS
+    // ============================================
+    async function loadUsers() {
+        const container = document.getElementById('users-list');
+        container.innerHTML = '<p class="text-center text-gray-500 py-4">Loading...</p>';
+
+        try {
+            allUsers = await fetchAdmin('/users?limit=200');
+            renderUsers(allUsers);
+        } catch (err) {
+            container.innerHTML = '<p class="text-center text-red-400 py-4">Failed to load users</p>';
+        }
+    }
+
+    function renderUsers(users) {
+        const container = document.getElementById('users-list');
+
+        if (users.length === 0) {
+            container.innerHTML = '<p class="text-center text-gray-500 py-4">No users</p>';
+            return;
         }
 
-        if (ADMIN_TOKEN) loadDashboard();
-    </script>
+        container.innerHTML = `
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-gray-400 text-xs uppercase border-b border-white/10">
+                            <th class="text-left py-2">Username</th>
+                            <th class="text-right py-2">Balance</th>
+                            <th class="text-right py-2">Bonus</th>
+                            <th class="text-center py-2">Status</th>
+                            <th class="text-right py-2">Referrals</th>
+                            <th class="text-right py-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(u => `
+                            <tr class="border-b border-white/5 hover:bg-white/5">
+                                <td class="py-2">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-7 h-7 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-xs font-bold">
+                                            ${(u.username || '?').charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <p class="font-bold">${escapeHtml(u.username)}</p>
+                                            <p class="text-[10px] text-gray-500">${u.emailVerified ? '✓ Email' : '✗ No email'}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-right font-mono">KES ${Math.round(u.balance || 0).toLocaleString()}</td>
+                                <td class="text-right font-mono text-yellow-400">KES ${Math.round(u.bonusBalance || 0).toLocaleString()}</td>
+                                <td class="text-center">
+                                    <span class="badge badge-${u.status || 'active'}">${u.status || 'active'}</span>
+                                </td>
+                                <td class="text-right">${u.referralCount || 0}</td>
+                                <td class="text-right">
+                                    <button onclick="openUserModal('${u._id}', '${escapeHtml(u.username)}')" class="btn-ghost">
+                                        <i class="fa-solid fa-cog"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function filterUsers() {
+        const q = document.getElementById('user-search').value.toLowerCase().trim();
+        const filtered = q
+            ? allUsers.filter(u => (u.username || '').toLowerCase().includes(q))
+            : allUsers;
+        renderUsers(filtered);
+    }
+
+    // ============================================
+    // USER ACTIONS
+    // ============================================
+    function openUserModal(userId, username) {
+        activeUserId = userId;
+        document.getElementById('ua-title').innerText = 'User Actions';
+        document.getElementById('ua-username').innerText = `@${username}`;
+        document.getElementById('ua-amount').value = '';
+        document.getElementById('ua-reason').value = '';
+        document.getElementById('user-action-modal').classList.remove('hidden');
+    }
+
+    function closeUserModal() {
+        document.getElementById('user-action-modal').classList.add('hidden');
+        activeUserId = null;
+    }
+
+    async function adjustBalance() {
+        const amount = parseFloat(document.getElementById('ua-amount').value);
+        const reason = document.getElementById('ua-reason').value.trim() || 'Admin adjustment';
+
+        if (!amount || isNaN(amount)) return alert('Enter a valid amount');
+        if (!activeUserId) return;
+
+        try {
+            const res = await fetch(`${API}/api/admin/users/${activeUserId}/balance`, {
+                method: 'POST',
+                headers: {
+                    'X-Admin-Token': ADMIN_TOKEN,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ amount, reason })
+            });
+            const data = await res.json();
+
+            if (!res.ok) return alert(data.error || 'Failed');
+
+            alert(`Balance adjusted. New balance: KES ${data.newBalance.toLocaleString()}`);
+            closeUserModal();
+            loadUsers();
+        } catch (err) {
+            alert('Network error');
+        }
+    }
+
+    async function suspendUser(status) {
+        if (!activeUserId) return;
+        if (!confirm(`Set user status to "${status}"?`)) return;
+
+        try {
+            const res = await fetch(`${API}/api/admin/users/${activeUserId}/status`, {
+                method: 'POST',
+                headers: {
+                    'X-Admin-Token': ADMIN_TOKEN,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status })
+            });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Failed');
+
+            alert(`User ${status}`);
+            closeUserModal();
+            loadUsers();
+        } catch (err) {
+            alert('Network error');
+        }
+    }
+
+    // ============================================
+    // TICKETS
+    // ============================================
+    async function loadTickets() {
+        const container = document.getElementById('tickets-list');
+        const status = document.getElementById('ticket-filter').value;
+        container.innerHTML = '<p class="text-center text-gray-500 py-4">Loading...</p>';
+
+        try {
+            const tickets = await fetchAdmin(`/tickets?status=${status}`);
+            if (tickets.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500 py-4">No tickets</p>';
+                return;
+            }
+
+            container.innerHTML = tickets.map(t => `
+                <div class="p-3 mb-2 border border-white/10 rounded-lg hover:bg-white/5 cursor-pointer"
+                     onclick="openTicket('${t._id}')">
+                    <div class="flex justify-between items-start gap-2">
+                        <div class="flex-1 min-w-0">
+                            <p class="font-bold text-sm">${escapeHtml(t.subject)}</p>
+                            <p class="text-xs text-gray-400 mt-1">@${escapeHtml(t.username)} · ${t.category}</p>
+                        </div>
+                        <span class="badge badge-${t.status}">${t.status}</span>
+                    </div>
+                </div>
+            `).join('');
+        } catch (err) {
+            container.innerHTML = '<p class="text-center text-red-400 py-4">Failed to load tickets</p>';
+        }
+    }
+
+    let activeTickets = [];
+
+    async function openTicket(ticketId) {
+        try {
+            const tickets = await fetchAdmin(`/tickets?status=${document.getElementById('ticket-filter').value}`);
+            const ticket = tickets.find(t => t._id === ticketId);
+            if (!ticket) return;
+
+            activeTicketId = ticketId;
+            document.getElementById('tk-subject').innerText = ticket.subject;
+            document.getElementById('tk-meta').innerText = `@${ticket.username} · ${ticket.category} · ${new Date(ticket.createdAt).toLocaleString()}`;
+            document.getElementById('tk-message').innerText = ticket.message;
+            document.getElementById('tk-response').value = ticket.adminResponse || '';
+            document.getElementById('ticket-action-modal').classList.remove('hidden');
+        } catch (err) {
+            alert('Failed to load ticket');
+        }
+    }
+
+    function closeTicketModal() {
+        document.getElementById('ticket-action-modal').classList.add('hidden');
+        activeTicketId = null;
+    }
+
+    async function respondTicket(status) {
+        const response = document.getElementById('tk-response').value.trim();
+        if (!response) return alert('Write a response');
+        if (!activeTicketId) return;
+
+        try {
+            const res = await fetch(`${API}/api/support/admin/respond/${activeTicketId}`, {
+                method: 'POST',
+                headers: {
+                    'X-Admin-Token': ADMIN_TOKEN,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ response, status })
+            });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Failed');
+
+            alert('Response saved');
+            closeTicketModal();
+            loadTickets();
+        } catch (err) {
+            alert('Network error');
+        }
+    }
+
+    // ============================================
+    // AUDIT
+    // ============================================
+    async function loadAudit() {
+        try {
+            allAudit = await fetchAdmin('/audit?limit=200');
+            renderAudit(allAudit);
+        } catch (err) {
+            document.getElementById('audit-list').innerHTML = '<p class="text-center text-red-400 py-4">Failed to load</p>';
+        }
+    }
+
+    function renderAudit(items) {
+        const container = document.getElementById('audit-list');
+        if (items.length === 0) {
+            container.innerHTML = '<p class="text-center text-gray-500 py-4">No logs</p>';
+            return;
+        }
+
+        container.innerHTML = items.map(a => `
+            <div class="flex justify-between items-center py-1.5 border-b border-white/5">
+                <span class="text-red-400 font-bold">${escapeHtml(a.action)}</span>
+                <span class="text-gray-300">${escapeHtml(a.username || 'system')}</span>
+                <span class="text-gray-500 text-[10px]">${new Date(a.createdAt).toLocaleString()}</span>
+            </div>
+        `).join('');
+    }
+
+    function filterAudit() {
+        const q = document.getElementById('audit-search').value.toLowerCase().trim();
+        const filtered = q
+            ? allAudit.filter(a =>
+                (a.action || '').toLowerCase().includes(q) ||
+                (a.username || '').toLowerCase().includes(q))
+            : allAudit;
+        renderAudit(filtered);
+    }
+
+    // ============================================
+    // UTILS
+    // ============================================
+    function escapeHtml(t) {
+        const d = document.createElement('div');
+        d.textContent = t || '';
+        return d.innerHTML;
+    }
+
+    // ============================================
+    // KEYBOARD SHORTCUTS
+    // ============================================
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeUserModal();
+            closeTicketModal();
+        }
+    });
+
+    // ============================================
+    // INIT
+    // ============================================
+    if (ADMIN_TOKEN) {
+        loadDashboard();
+    } else {
+        document.getElementById('login-screen').classList.remove('hidden');
+    }
+</script>
 </body>
 </html>
