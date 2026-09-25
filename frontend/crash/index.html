@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e1a">
+    <title>Crash — BetNova</title>
+    <meta name="description" content="Play Crash on BetNova. Provably fair rising-multiplier game with instant M-Pesa deposits.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/shell.css">
+    <link rel="stylesheet" href="/crash/crash.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
+</head>
+<body class="cr-body">
+
+<!-- ============================================ -->
+<!-- HEADER -->
+<!-- ============================================ -->
+<header class="cr-header">
+    <div class="cr-header-inner">
+
+        <div class="cr-header-left">
+            <a href="/" class="cr-back" aria-label="Back to Home">
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
+            <a href="/" class="cr-logo" aria-label="BetNova Home">
+                <span class="cr-logo-red">Bet</span><span class="cr-logo-white">Nova</span>
+            </a>
+            <span class="cr-game-tag">Crash</span>
+        </div>
+
+        <nav class="cr-quick-nav" aria-label="Quick navigation">
+            <a href="/" title="Home"><i class="fa-solid fa-house"></i><span>Home</span></a>
+            <a href="/aviator" title="Aviator"><i class="fa-solid fa-plane-up"></i><span>Aviator</span></a>
+            <a href="/crash" class="active" title="Crash"><i class="fa-solid fa-chart-line"></i><span>Crash</span></a>
+            <a href="/soccer" title="Soccer"><i class="fa-solid fa-futbol"></i><span>Soccer</span></a>
+            <a href="/casino" title="Casino"><i class="fa-solid fa-dice"></i><span>Casino</span></a>
+            <a href="/cashier" title="Cashier"><i class="fa-solid fa-wallet"></i><span>Cashier</span></a>
+        </nav>
+
+        <div class="cr-header-right">
+            <button class="cr-balance-chip" onclick="location.href='/cashier'" aria-label="Open Cashier">
+                <i class="fa-solid fa-wallet"></i>
+                <span id="balance-display">0.00</span>
+                <span class="cr-currency">KES</span>
+            </button>
+
+            <button class="cr-icon-btn cr-desktop-only" onclick="openModal('deposit-modal')" aria-label="Deposit">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+
+            <button class="cr-icon-btn" id="sound-toggle" onclick="toggleSound()" aria-label="Toggle sound">
+                <i class="fa-solid fa-volume-high"></i>
+            </button>
+
+            <button class="cr-icon-btn" onclick="toggleChat()" aria-label="Live chat">
+                <i class="fa-solid fa-comments"></i>
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- ============================================ -->
+<!-- MAIN LAYOUT -->
+<!-- ============================================ -->
+<main class="cr-layout">
+
+    <!-- ============ LEFT: ALL BETS ============ -->
+    <aside class="cr-bets-panel" id="bets-panel">
+        <div class="cr-bets-tabs">
+            <button class="cr-tab active" data-tab="all">All Bets</button>
+            <button class="cr-tab" data-tab="previous">Previous</button>
+        </div>
+
+        <div class="cr-bets-summary">
+            <span class="cr-bets-count-label">Total bets</span>
+            <span class="cr-bets-count" id="bets-count">0</span>
+        </div>
+
+        <div class="cr-bets-header">
+            <span>Player</span>
+            <span>Bet</span>
+            <span>X</span>
+            <span>Win</span>
+        </div>
+
+        <div class="cr-bets-list" id="bets-list">
+            <div class="cr-empty-state">
+                <i class="fa-solid fa-chart-line"></i>
+                <span>Waiting for players...</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ============ CENTER: GAME ============ -->
+    <section class="cr-game">
+
+        <a href="/promotions#jackpots" class="cr-jackpot">
+            <span class="cr-live-dot"></span>
+            <span class="cr-live-label">LIVE</span>
+            <span class="cr-jackpot-text">
+                <strong>Mfalme Wa Anga</strong> · KES 400,000 Daily Crown
+            </span>
+            <i class="fa-solid fa-chevron-right cr-jackpot-arrow"></i>
+        </a>
+
+        <div class="cr-history-strip" id="history-strip"></div>
+
+        <!-- Game canvas -->
+        <div class="cr-canvas-wrap">
+            <div class="cr-status-badge" id="status-badge">Waiting for next round...</div>
+
+            <!-- Big animated multiplier -->
+            <div class="cr-multiplier-wrap">
+                <h2 class="cr-multiplier" id="multiplier">1.00<span>x</span></h2>
+                <div class="cr-multiplier-bar">
+                    <div class="cr-multiplier-bar-fill" id="multiplier-fill"></div>
+                </div>
+            </div>
+
+            <canvas id="cr-canvas"></canvas>
+
+            <div class="cr-lock" id="game-lock">
+                <div class="cr-lock-inner">
+                    <i class="fa-solid fa-lock"></i>
+                    <h3>Sign in to play</h3>
+                    <p>Join the round and place your bet</p>
+                    <button onclick="location.href='/'">Go to Home</button>
+                </div>
+            </div>
+
+            <!-- Crash overlay flash -->
+            <div class="cr-crash-flash" id="crash-flash"></div>
+        </div>
+
+        <!-- Dual bet panels -->
+        <div class="cr-bet-panels">
+
+            <!-- PANEL 1 -->
+            <div class="cr-bet-panel" id="bet-panel-1">
+                <div class="cr-bet-tabs">
+                    <button class="cr-bet-tab active" data-panel="1" data-mode="bet">Bet</button>
+                    <button class="cr-bet-tab" data-panel="1" data-mode="auto">Auto</button>
+                </div>
+
+                <div class="cr-bet-body" data-panel="1">
+                    <div class="cr-stake-row">
+                        <button class="cr-stake-btn" onclick="adjustStake(1, -10)" aria-label="Decrease stake">−</button>
+                        <div class="cr-stake-input-wrap">
+                            <input type="number" class="cr-stake-input" id="stake-1" value="10" min="10" step="10" inputmode="numeric">
+                            <span class="cr-stake-suffix">KES</span>
+                        </div>
+                        <button class="cr-stake-btn" onclick="adjustStake(1, 10)" aria-label="Increase stake">+</button>
+                    </div>
+
+                    <div class="cr-quick-chips">
+                        <button onclick="setStake(1, 100)">100</button>
+                        <button onclick="setStake(1, 250)">250</button>
+                        <button onclick="setStake(1, 1000)">1,000</button>
+                        <button onclick="setStake(1, 5000)">5,000</button>
+                    </div>
+
+                    <button class="cr-action-btn cr-action-bet" id="action-1" onclick="handleBetAction(1)">
+                        <span class="cr-btn-title">BET</span>
+                        <span class="cr-btn-subtext">KES 10.00</span>
+                    </button>
+                </div>
+
+                <div class="cr-bet-body hidden" data-panel="1" data-auto="true">
+                    <div class="cr-auto-row">
+                        <label>Auto Cashout</label>
+                        <div class="cr-auto-input-wrap">
+                            <input type="number" class="cr-auto-input" id="auto-cashout-1" placeholder="2.00" step="0.01" min="1.01" inputmode="decimal">
+                            <span>x</span>
+                        </div>
+                    </div>
+                    <button class="cr-action-btn cr-action-bet" id="action-1-auto" onclick="handleBetAction(1)">
+                        <span class="cr-btn-title">BET</span>
+                        <span class="cr-btn-subtext">KES 10.00</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- PANEL 2 -->
+            <div class="cr-bet-panel" id="bet-panel-2">
+                <div class="cr-bet-tabs">
+                    <button class="cr-bet-tab active" data-panel="2" data-mode="bet">Bet</button>
+                    <button class="cr-bet-tab" data-panel="2" data-mode="auto">Auto</button>
+                </div>
+
+                <div class="cr-bet-body" data-panel="2">
+                    <div class="cr-stake-row">
+                        <button class="cr-stake-btn" onclick="adjustStake(2, -10)" aria-label="Decrease stake">−</button>
+                        <div class="cr-stake-input-wrap">
+                            <input type="number" class="cr-stake-input" id="stake-2" value="10" min="10" step="10" inputmode="numeric">
+                            <span class="cr-stake-suffix">KES</span>
+                        </div>
+                        <button class="cr-stake-btn" onclick="adjustStake(2, 10)" aria-label="Increase stake">+</button>
+                    </div>
+
+                    <div class="cr-quick-chips">
+                        <button onclick="setStake(2, 100)">100</button>
+                        <button onclick="setStake(2, 250)">250</button>
+                        <button onclick="setStake(2, 1000)">1,000</button>
+                        <button onclick="setStake(2, 5000)">5,000</button>
+                    </div>
+
+                    <button class="cr-action-btn cr-action-bet" id="action-2" onclick="handleBetAction(2)">
+                        <span class="cr-btn-title">BET</span>
+                        <span class="cr-btn-subtext">KES 10.00</span>
+                    </button>
+                </div>
+
+                <div class="cr-bet-body hidden" data-panel="2" data-auto="true">
+                    <div class="cr-auto-row">
+                        <label>Auto Cashout</label>
+                        <div class="cr-auto-input-wrap">
+                            <input type="number" class="cr-auto-input" id="auto-cashout-2" placeholder="2.00" step="0.01" min="1.01" inputmode="decimal">
+                            <span>x</span>
+                        </div>
+                    </div>
+                    <button class="cr-action-btn cr-action-bet" id="action-2-auto" onclick="handleBetAction(2)">
+                        <span class="cr-btn-title">BET</span>
+                        <span class="cr-btn-subtext">KES 10.00</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="cr-fair-footer">
+            <span><i class="fa-solid fa-shield-halved"></i> Provably Fair</span>
+            <span class="cr-divider">·</span>
+            <span>Round #<span id="cr-round-id">—</span></span>
+        </div>
+    </section>
+
+    <!-- ============ RIGHT: CHAT ============ -->
+    <aside class="cr-chat-panel" id="chat-panel">
+        <div class="cr-chat-header">
+            <span class="cr-chat-title">
+                <i class="fa-solid fa-comments"></i>
+                Live Chat
+            </span>
+            <span class="cr-chat-online">
+                <span class="cr-online-dot"></span>
+                <span id="chat-online">0</span>
+            </span>
+            <button class="cr-chat-close" onclick="toggleChat()" aria-label="Close chat">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="cr-chat-messages" id="chat-messages">
+            <div class="cr-chat-empty">
+                <i class="fa-solid fa-comments"></i>
+                <span>Be the first to say something</span>
+            </div>
+        </div>
+
+        <div class="cr-chat-input-row">
+            <input type="text" id="chat-input" placeholder="Type a message..." maxlength="200"
+                   onkeydown="if(event.key==='Enter') sendChat()" aria-label="Chat message" autocomplete="off">
+            <button onclick="sendChat()" aria-label="Send message">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+    </aside>
+</main>
+
+<!-- ============================================ -->
+<!-- MOBILE BOTTOM NAV -->
+<!-- ============================================ -->
+<nav class="cr-bottom-nav">
+    <a href="/" class="cr-bottom-item">
+        <i class="fa-solid fa-house"></i>
+        <span>Home</span>
+    </a>
+    <a href="/aviator" class="cr-bottom-item">
+        <i class="fa-solid fa-plane-up"></i>
+        <span>Aviator</span>
+    </a>
+    <a href="/crash" class="cr-bottom-item active">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Crash</span>
+    </a>
+    <a href="/casino" class="cr-bottom-item">
+        <i class="fa-solid fa-dice"></i>
+        <span>Casino</span>
+    </a>
+    <a href="/cashier" class="cr-bottom-item">
+        <i class="fa-solid fa-wallet"></i>
+        <span>Cashier</span>
+    </a>
+</nav>
+
+<!-- ============================================ -->
+<!-- SHARED SHELL MODALS -->
+<!-- ============================================ -->
+<div id="signin-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('signin-modal')">&times;</button>
+        <h3>Welcome Back</h3>
+        <p>Sign in to continue</p>
+        <form onsubmit="handleAuth(event, 'signin')">
+            <input id="signin-user" type="text" placeholder="Username" required class="shell-input">
+            <input id="signin-pass" type="password" placeholder="Password" required class="shell-input">
+            <button type="submit" class="shell-btn shell-btn-green shell-btn-full">Sign In</button>
+        </form>
+        <p class="shell-modal-footer">
+            No account? <a href="#" onclick="closeModal('signin-modal'); openModal('signup-modal'); return false;">Create one</a>
+        </p>
+    </div>
+</div>
+
+<div id="signup-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('signup-modal')">&times;</button>
+        <h3>Create Account</h3>
+        <p>Join thousands of players</p>
+        <form onsubmit="handleAuth(event, 'signup')">
+            <input id="signup-user" type="text" placeholder="Username (min 3 chars)" required minlength="3" class="shell-input">
+            <input id="signup-pass" type="password" placeholder="Password (min 4 chars)" required minlength="4" class="shell-input">
+            <label class="shell-checkbox">
+                <input type="checkbox" required>
+                <span>I am 18+ and accept the Terms of Service</span>
+            </label>
+            <button type="submit" class="shell-btn shell-btn-green shell-btn-full">Create Account</button>
+        </form>
+    </div>
+</div>
+
+<div id="deposit-modal" class="cr-modal hidden">
+    <div class="cr-modal-card">
+        <button class="cr-modal-close" onclick="closeModal('deposit-modal')" aria-label="Close">&times;</button>
+        <h3>Deposit Funds</h3>
+        <p class="cr-modal-sub">Instant M-Pesa STK Push</p>
+        <label class="cr-modal-label">Amount (KES)</label>
+        <input type="number" id="deposit-amount" value="100" min="10" max="150000" step="10" class="cr-modal-input" inputmode="numeric">
+        <label class="cr-modal-label">M-Pesa Phone</label>
+        <input type="tel" id="deposit-phone" placeholder="0712345678" class="cr-modal-input" inputmode="tel">
+        <button onclick="handleDeposit()" class="cr-modal-btn">
+            <i class="fa-solid fa-bolt"></i> Send M-Pesa Request
+        </button>
+    </div>
+</div>
+
+<div id="withdraw-modal" class="cr-modal hidden">
+    <div class="cr-modal-card">
+        <button class="cr-modal-close" onclick="closeModal('withdraw-modal')" aria-label="Close">&times;</button>
+        <h3>Withdraw Funds</h3>
+        <p class="cr-modal-sub">Sent to M-Pesa within minutes</p>
+        <label class="cr-modal-label">Amount (KES)</label>
+        <input type="number" id="withdraw-amount" value="100" min="50" step="10" class="cr-modal-input" inputmode="numeric">
+        <label class="cr-modal-label">M-Pesa Phone</label>
+        <input type="tel" id="withdraw-phone" placeholder="0712345678" class="cr-modal-input" inputmode="tel">
+        <button onclick="handleWithdraw()" class="cr-modal-btn">
+            <i class="fa-solid fa-money-bill-transfer"></i> Withdraw to M-Pesa
+        </button>
+    </div>
+</div>
+
+<div id="history-modal" class="cr-modal hidden">
+    <div class="cr-modal-card cr-modal-wide">
+        <button class="cr-modal-close" onclick="closeModal('history-modal')" aria-label="Close">&times;</button>
+        <h3>My Bets</h3>
+        <p class="cr-modal-sub">Recent Crash rounds</p>
+        <div id="history-list" class="cr-history-list">
+            <p class="cr-empty-state"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</p>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="cr-toast hidden"></div>
+
+<!-- ============================================ -->
+<!-- SCRIPTS — shell.js MUST load before crash.js -->
+<!-- ============================================ -->
+<script src="/shell.js"></script>
+<script src="/crash/crash.js"></script>
+</body>
+</html>
