@@ -16,7 +16,8 @@ const socket = io(API_BASE || undefined, {
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 10,
-    reconnectionDelay: 1000
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000
 });
 
 // ============================================
@@ -33,11 +34,11 @@ let autoBetEnabled = { 1: false, 2: false };
 // CANVAS
 // ============================================
 const canvas = document.getElementById('avi-canvas');
-const ctx = canvas.getContext('2d');
-let W, H;
+const ctx = canvas ? canvas.getContext('2d') : null;
+let W = 0, H = 0;
 
 function resizeCanvas() {
-    if (!canvas) return;
+    if (!canvas || !ctx) return;
     W = canvas.clientWidth;
     H = canvas.clientHeight;
     canvas.width = W * window.devicePixelRatio;
@@ -46,6 +47,9 @@ function resizeCanvas() {
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 }
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => {
+    setTimeout(resizeCanvas, 100);
+});
 
 // ============================================
 // SOUND MANAGER
@@ -142,6 +146,8 @@ function checkSession() {
         const lock = document.getElementById('game-lock');
         if (lock) lock.classList.remove('hidden');
     }
+    updateActionButton(1);
+    updateActionButton(2);
 }
 
 async function refreshBalance() {
@@ -174,7 +180,7 @@ function closeModal(id) {
 }
 
 document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('avi-modal')) {
+    if (e.target.classList && e.target.classList.contains('avi-modal')) {
         e.target.classList.add('hidden');
     }
 });
@@ -216,7 +222,9 @@ document.querySelectorAll('.avi-bet-tab').forEach(tab => {
 
         // Toggle active on tab
         const parent = tab.parentElement;
-        parent.querySelectorAll('.avi-bet-tab').forEach(t => t.classList.remove('active'));
+        if (parent) {
+            parent.querySelectorAll('.avi-bet-tab').forEach(t => t.classList.remove('active'));
+        }
         tab.classList.add('active');
 
         // Show correct body
@@ -243,40 +251,51 @@ function updateActionButton(panel) {
     // If in flight and we have an active bet that hasn't cashed out
     if (lastStatus && lastStatus.status === 'FLYING' && bet && !bet.cashedOut) {
         const payout = (bet.amount * lastStatus.multiplier).toFixed(2);
-        const label = `CASH OUT ${formatKES(payout)}`;
-        btn.innerText = label;
-        if (btnAuto) btnAuto.innerText = label;
-        btn.className = 'avi-action-btn avi-action-cashout';
-        if (btnAuto) btnAuto.className = 'avi-action-btn avi-action-cashout';
-        btn.disabled = false;
-        if (btnAuto) btnAuto.disabled = false;
+        const title = 'CASH OUT';
+        const subtext = `KES ${formatKES(payout)}`;
+
+        applyButtonState(btn, 'avi-action-cashout', false, title, subtext);
+        if (btnAuto) applyButtonState(btnAuto, 'avi-action-cashout', false, title, subtext);
         return;
     }
 
-    // If we have a bet in this round
+    // If we have a bet in this round (placed or cashed)
     if (bet && (bet.cashedOut || (lastStatus && lastStatus.status !== 'CRASHED'))) {
-        const label = bet.cashedOut
-            ? `CASHED @ ${bet.cashoutMultiplier.toFixed(2)}x`
-            : 'BET PLACED';
-        btn.innerText = label;
-        if (btnAuto) btnAuto.innerText = label;
-        btn.className = 'avi-action-btn avi-action-waiting';
-        if (btnAuto) btnAuto.className = 'avi-action-btn avi-action-waiting';
-        btn.disabled = true;
-        if (btnAuto) btnAuto.disabled = true;
+        const title = bet.cashedOut ? 'CASHED OUT' : 'BET PLACED';
+        const subtext = bet.cashedOut
+            ? `@ ${bet.cashoutMultiplier.toFixed(2)}x`
+            : `KES ${formatKES(bet.amount)}`;
+
+        applyButtonState(btn, 'avi-action-waiting', true, title, subtext);
+        if (btnAuto) applyButtonState(btnAuto, 'avi-action-waiting', true, title, subtext);
         return;
     }
 
     // Default: ready to bet
-    const label = `BET ${formatKES(stake)} KES`;
-    btn.innerText = label;
-    if (btnAuto) btnAuto.innerText = label;
-    btn.className = 'avi-action-btn avi-action-bet';
-    if (btnAuto) btnAuto.className = 'avi-action-btn avi-action-bet';
-
+    const title = 'BET';
+    const subtext = `KES ${formatKES(stake)}`;
     const canBet = lastStatus && lastStatus.status === 'WAITING';
-    btn.disabled = !canBet;
-    if (btnAuto) btnAuto.disabled = !canBet;
+
+    applyButtonState(btn, 'avi-action-bet', !canBet, title, subtext);
+    if (btnAuto) applyButtonState(btnAuto, 'avi-action-bet', !canBet, title, subtext);
+}
+
+function applyButtonState(btn, className, disabled, title, subtext) {
+    // Update class
+    btn.className = `avi-action-btn ${className}`;
+    btn.disabled = disabled;
+
+    // Update inner text — preserve two-line structure if present
+    const titleEl = btn.querySelector('.avi-btn-title');
+    const subtextEl = btn.querySelector('.avi-btn-subtext');
+
+    if (titleEl && subtextEl) {
+        titleEl.innerText = title;
+        subtextEl.innerText = subtext;
+    } else {
+        // Fallback for old markup
+        btn.innerText = subtext ? `${title} ${subtext}` : title;
+    }
 }
 
 // Watch stake input changes
@@ -290,7 +309,7 @@ function updateActionButton(panel) {
 // ============================================
 function handleBetAction(panel) {
     if (!currentUser) {
-        showToast('Sign in first', 'error');
+        showToast('Sign in to place bets', 'error');
         return;
     }
 
@@ -309,7 +328,7 @@ function handleBetAction(panel) {
         return;
     }
     if (bet) {
-        showToast('Bet already placed', 'error');
+        showToast('Bet already placed on this panel', 'error');
         return;
     }
 
@@ -343,6 +362,11 @@ socket.on('connect', () => {
 
 socket.on('disconnect', (reason) => {
     console.log('[Aviator] Socket disconnected:', reason);
+});
+
+socket.on('reconnect', () => {
+    console.log('[Aviator] Socket reconnected');
+    refreshBalance();
 });
 
 // ============================================
@@ -459,7 +483,12 @@ socket.on('all_bets_update', (bets) => {
     if (countEl) countEl.innerText = bets.length;
 
     if (bets.length === 0) {
-        list.innerHTML = '<div class="avi-empty-state">No active bets</div>';
+        list.innerHTML = `
+            <div class="avi-empty-state">
+                <i class="fa-solid fa-plane-circle-check"></i>
+                <span>Waiting for players...</span>
+            </div>
+        `;
         return;
     }
 
@@ -506,18 +535,22 @@ socket.on('crash_history', (history) => {
 // ============================================
 socket.on('round_commit', (data) => {
     currentCommit = data;
+
     const roundEl = document.getElementById('pf-round');
     const hashEl = document.getElementById('pf-hash');
     const seedEl = document.getElementById('pf-seed');
     const crashEl = document.getElementById('pf-crash');
     const resultEl = document.getElementById('pf-result');
+    const roundTagEl = document.getElementById('avi-round-id');
 
     if (roundEl) roundEl.innerText = `#${data.roundId}`;
     if (hashEl) hashEl.innerText = data.serverSeedHash;
     if (seedEl) seedEl.innerText = 'Waiting for reveal...';
     if (crashEl) crashEl.innerText = '—';
+    if (roundTagEl) roundTagEl.innerText = data.roundId;
     if (resultEl) {
         resultEl.className = 'avi-fairness-result';
+        resultEl.style.color = '';
         resultEl.innerText = 'Round in progress. Seed will be revealed after crash.';
     }
 });
@@ -551,30 +584,38 @@ socket.on('round_reveal', async (data) => {
 
 // Client-side SHA-256 verification
 async function verifySeed(seed, expected) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(seed));
-    const hex = Array.from(new Uint8Array(buf))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-    return hex === expected;
+    try {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(seed));
+        const hex = Array.from(new Uint8Array(buf))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+        return hex === expected;
+    } catch (_) {
+        return false;
+    }
 }
 
 // Client-side HMAC-SHA256 crash reproduction
 async function recomputeCrash(seed, roundId) {
-    const key = await crypto.subtle.importKey(
-        'raw',
-        new TextEncoder().encode(seed),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['sign']
-    );
-    const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(roundId.toString()));
-    const hex = Array.from(new Uint8Array(sig))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-    const int = parseInt(hex.slice(0, 8), 16);
-    const float = int / 0xFFFFFFFF;
-    if (float < 0.03) return 1.00;
-    return parseFloat(Math.min(1.01 / (1 - float), 1000).toFixed(2));
+    try {
+        const key = await crypto.subtle.importKey(
+            'raw',
+            new TextEncoder().encode(seed),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+        );
+        const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(roundId.toString()));
+        const hex = Array.from(new Uint8Array(sig))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+        const int = parseInt(hex.slice(0, 8), 16);
+        const float = int / 0xFFFFFFFF;
+        if (float < 0.03) return 1.00;
+        return parseFloat(Math.min(1.01 / (1 - float), 1000).toFixed(2));
+    } catch (_) {
+        return 0;
+    }
 }
 
 // ============================================
@@ -629,7 +670,12 @@ socket.on('chat_history', (messages) => {
 
     box.innerHTML = '';
     if (!messages || messages.length === 0) {
-        box.innerHTML = '<div class="avi-chat-empty">Be the first to say something</div>';
+        box.innerHTML = `
+            <div class="avi-chat-empty">
+                <i class="fa-solid fa-comments"></i>
+                <span>Be the first to say something</span>
+            </div>
+        `;
         return;
     }
     messages.forEach(renderChatMessage);
@@ -648,7 +694,7 @@ function toggleChat() {
 }
 
 // ============================================
-// PAYHERO
+// PAYHERO — DEPOSIT
 // ============================================
 async function handleDeposit() {
     if (!currentUser) return showToast('Sign in first', 'error');
@@ -660,6 +706,12 @@ async function handleDeposit() {
     const phone = phoneEl.value.trim();
     if (!amount || amount < 10) return showToast('Minimum KES 10', 'error');
     if (!phone) return showToast('Enter M-Pesa number', 'error');
+
+    const btn = event && event.target ? event.target : null;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Sending...';
+    }
 
     try {
         const res = await fetch(`${API_BASE}/api/payhero/deposit`, {
@@ -674,9 +726,17 @@ async function handleDeposit() {
         setTimeout(refreshBalance, 8000);
     } catch (e) {
         showToast('Network error', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Send M-Pesa Request';
+        }
     }
 }
 
+// ============================================
+// PAYHERO — WITHDRAW
+// ============================================
 async function handleWithdraw() {
     if (!currentUser) return showToast('Sign in first', 'error');
     const amountEl = document.getElementById('withdraw-amount');
@@ -688,6 +748,12 @@ async function handleWithdraw() {
     if (!amount || amount < 50) return showToast('Minimum KES 50', 'error');
     if (!phone) return showToast('Enter M-Pesa number', 'error');
 
+    const btn = event && event.target ? event.target : null;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Processing...';
+    }
+
     try {
         const res = await fetch(`${API_BASE}/api/payhero/withdraw`, {
             method: 'POST',
@@ -698,7 +764,9 @@ async function handleWithdraw() {
 
         if (!res.ok) {
             if (data.code === 'KYC_REQUIRED') {
-                showToast('Verify your email first (via Cashier)', 'error', 5000);
+                showToast('Verify your email in Cashier first', 'error', 5000);
+                closeModal('withdraw-modal');
+                setTimeout(() => location.href = '/cashier#kyc', 1500);
                 return;
             }
             if (data.code === 'WAGERING_REQUIRED') {
@@ -708,11 +776,16 @@ async function handleWithdraw() {
             return showToast(data.error || 'Withdrawal failed', 'error');
         }
 
-        showToast('Withdrawal sent', 'success', 5000);
+        showToast('Withdrawal sent to M-Pesa', 'success', 5000);
         closeModal('withdraw-modal');
         setTimeout(refreshBalance, 3000);
     } catch (e) {
         showToast('Network error', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-money-bill-transfer"></i> Withdraw to M-Pesa';
+        }
     }
 }
 
@@ -740,11 +813,12 @@ async function loadHistory() {
             const profit = b.profit >= 0
                 ? `+KES ${formatKES(b.profit)}`
                 : `KES ${formatKES(b.profit)}`;
+            const time = new Date(b.createdAt).toLocaleTimeString('en-KE', {
+                hour: '2-digit', minute: '2-digit'
+            });
             return `
                 <div style="display:grid;grid-template-columns:70px 1fr 70px 100px;gap:8px;padding:8px;border-bottom:1px solid rgba(255,255,255,0.05);align-items:center;font-size:12px;">
-                    <span style="color:#6b7280;font-family:monospace">
-                        ${new Date(b.createdAt).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                    <span style="color:#6b7280;font-family:monospace">${time}</span>
                     <span>KES ${formatKES(b.amount)}</span>
                     <span style="color:#fbbf24;font-family:monospace">
                         ${win ? b.cashoutMultiplier.toFixed(2) + 'x' : '—'}
@@ -777,7 +851,7 @@ function drawCurve(progress, crashed = false) {
     const maxX = W - 60;
     const maxY = 60;
 
-    // Grid
+    // Grid lines
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
     for (let i = 1; i < 6; i++) {
@@ -788,7 +862,7 @@ function drawCurve(progress, crashed = false) {
         ctx.stroke();
     }
 
-    // Curve points
+    // Build curve points
     const points = [];
     const steps = Math.max(2, Math.floor(progress * 100));
     for (let i = 0; i <= steps; i++) {
@@ -799,7 +873,7 @@ function drawCurve(progress, crashed = false) {
     }
 
     if (points.length > 1) {
-        // Fill under curve
+        // Gradient fill under curve
         const gradient = ctx.createLinearGradient(0, startY, 0, maxY);
         if (crashed) {
             gradient.addColorStop(0, 'rgba(239, 68, 68, 0.35)');
@@ -816,7 +890,7 @@ function drawCurve(progress, crashed = false) {
         ctx.closePath();
         ctx.fill();
 
-        // Glowing line
+        // Glowing path line
         ctx.beginPath();
         ctx.strokeStyle = crashed ? '#ef4444' : '#ff2d55';
         ctx.lineWidth = 3;
@@ -834,7 +908,7 @@ function drawCurve(progress, crashed = false) {
     // Plane at the head
     const head = points[points.length - 1];
     if (head) {
-        // Trail particles
+        // Particle trail
         for (let i = 1; i <= 6; i++) {
             const idx = points.length - 1 - i;
             if (idx < 0) break;
@@ -845,7 +919,7 @@ function drawCurve(progress, crashed = false) {
             ctx.fill();
         }
 
-        // Plane rotation
+        // Rotation angle based on trajectory
         let angle = 0;
         if (points.length > 1) {
             const prev = points[points.length - 2];
@@ -856,12 +930,12 @@ function drawCurve(progress, crashed = false) {
         ctx.translate(head.x, head.y);
         ctx.rotate(angle);
 
-        // Plane body
+        // Plane color
         ctx.fillStyle = crashed ? '#ef4444' : '#ff2d55';
         ctx.shadowBlur = 15;
         ctx.shadowColor = 'rgba(255, 45, 85, 0.8)';
 
-        // Main body
+        // Main body (triangle)
         ctx.beginPath();
         ctx.moveTo(16, 0);
         ctx.lineTo(-6, -8);
@@ -870,7 +944,7 @@ function drawCurve(progress, crashed = false) {
         ctx.closePath();
         ctx.fill();
 
-        // Wings
+        // Top wing
         ctx.beginPath();
         ctx.moveTo(2, -2);
         ctx.lineTo(-4, -14);
@@ -878,6 +952,7 @@ function drawCurve(progress, crashed = false) {
         ctx.closePath();
         ctx.fill();
 
+        // Bottom wing
         ctx.beginPath();
         ctx.moveTo(2, 2);
         ctx.lineTo(-4, 14);
