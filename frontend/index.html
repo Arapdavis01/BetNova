@@ -36,8 +36,8 @@
             <a href="/crash" class="shell-nav-link">Crash</a>
             <a href="#" class="shell-nav-link">Casino <span class="badge-new">NEW</span></a>
             <a href="#" class="shell-nav-link">Virtuals</a>
-            <a href="#" class="shell-nav-link">Promotions</a>
-            <a href="#" class="shell-nav-link">Jackpots</a>
+            <a href="/promotions" class="shell-nav-link">Promotions <span class="badge-new">NEW</span></a>
+            <a href="/promotions#jackpots" class="shell-nav-link">Jackpots</a>
         </nav>
 
         <!-- Right: Auth / Wallet / User -->
@@ -77,6 +77,9 @@
                         <button class="shell-user-menu-item" onclick="openModal('history-modal')">
                             <i class="fa-solid fa-clock-rotate-left"></i> My Bets
                         </button>
+                        <button class="shell-user-menu-item" onclick="location.href='/promotions'">
+                            <i class="fa-solid fa-gift"></i> Promotions
+                        </button>
                         <button class="shell-user-menu-item" onclick="openModal('responsible-modal')">
                             <i class="fa-solid fa-shield-halved"></i> Responsible Gambling
                         </button>
@@ -107,10 +110,10 @@
         <a href="/aviator"><i class="fa-solid fa-plane-up"></i> Aviator</a>
         <a href="/crash"><i class="fa-solid fa-chart-line"></i> Crash</a>
         <a href="/cashier"><i class="fa-solid fa-wallet"></i> Cashier</a>
+        <a href="/promotions"><i class="fa-solid fa-gift"></i> Promotions <span class="badge-new">NEW</span></a>
+        <a href="/promotions#jackpots"><i class="fa-solid fa-trophy"></i> Jackpots</a>
         <a href="#"><i class="fa-solid fa-dice"></i> Casino</a>
-        <a href="#"><i class="fa-solid fa-trophy"></i> Virtuals</a>
-        <a href="#"><i class="fa-solid fa-gift"></i> Promotions</a>
-        <a href="#"><i class="fa-solid fa-fire"></i> Jackpots</a>
+        <a href="#"><i class="fa-solid fa-futbol"></i> Virtuals</a>
         <a href="#"><i class="fa-solid fa-headset"></i> Support</a>
     </nav>
 </aside>
@@ -337,7 +340,7 @@
             </div>
             <div class="shell-jackpot-right">
                 <p class="shell-jackpot-desc">Winner takes all every day at midnight</p>
-                <a href="#" class="shell-btn shell-btn-yellow">
+                <a href="/promotions#jackpots" class="shell-btn shell-btn-yellow">
                     Play to Win <i class="fa-solid fa-arrow-right"></i>
                 </a>
             </div>
@@ -408,8 +411,9 @@
         <div class="shell-footer-col">
             <h4>Account</h4>
             <a href="/cashier">Cashier</a>
+            <a href="/promotions">Promotions</a>
+            <a href="/promotions#jackpots">Jackpots</a>
             <a href="/cashier#referral">Refer & Earn</a>
-            <a href="/cashier#history">Transactions</a>
             <a href="#" onclick="openModal('responsible-modal'); return false;">Responsible Gambling</a>
         </div>
         <div class="shell-footer-col">
@@ -444,13 +448,13 @@
         <i class="fa-solid fa-plane-up"></i>
         <span>Aviator</span>
     </a>
+    <a href="/promotions" class="shell-bottom-item">
+        <i class="fa-solid fa-gift"></i>
+        <span>Promos</span>
+    </a>
     <a href="/cashier" class="shell-bottom-item">
         <i class="fa-solid fa-wallet"></i>
         <span>Cashier</span>
-    </a>
-    <a href="#" class="shell-bottom-item" onclick="toggleUserMenu(); return false;">
-        <i class="fa-solid fa-user"></i>
-        <span>Profile</span>
     </a>
 </nav>
 
