@@ -1,35 +1,82 @@
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
+    // ============================================
+    // AUTHENTICATION
+    // ============================================
     username: {
         type: String,
         required: true,
         unique: true,
-        trim: true
+        trim: true,
+        lowercase: true,
+        minlength: 3,
+        maxlength: 20,
+        index: true
     },
     password: {
         type: String,
         required: true
+        // Stored as bcrypt hash, never plain text
     },
+
+    // ============================================
+    // WALLET
+    // ============================================
     balance: {
         type: Number,
-        default: 1000.00
+        default: 0.00,
+        min: 0
     },
-    // ---------- KYC ----------
+
+    // ============================================
+    // KYC — EMAIL (Primary verification method)
+    // ============================================
+    email: {
+        type: String,
+        default: null,
+        trim: true,
+        lowercase: true,
+        index: true
+    },
+    emailVerified: {
+        type: Boolean,
+        default: false
+    },
+
+    // ============================================
+    // KYC — PHONE (Reserved for future SMS)
+    // ============================================
     phone: {
         type: String,
         default: null,
+        trim: true,
         index: true
     },
     phoneVerified: {
         type: Boolean,
         default: false
     },
-    // ---------- Responsible Gambling ----------
+
+    // ============================================
+    // RESPONSIBLE GAMBLING
+    // ============================================
     limits: {
-        dailyDepositLimit: { type: Number, default: null },   // null = no limit
-        dailyWagerLimit: { type: Number, default: null },
-        sessionTimeLimit: { type: Number, default: null }      // minutes
+        dailyDepositLimit: {
+            type: Number,
+            default: null,   // null = no limit
+            min: 0
+        },
+        dailyWagerLimit: {
+            type: Number,
+            default: null,
+            min: 0
+        },
+        sessionTimeLimit: {
+            type: Number,
+            default: null,   // minutes
+            min: 0
+        }
     },
     selfExcluded: {
         type: Boolean,
@@ -39,25 +86,117 @@ const UserSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
-    // ---------- Admin ----------
+
+    // ============================================
+    // ROLE / PERMISSIONS
+    // ============================================
     role: {
         type: String,
         enum: ['user', 'admin'],
-        default: 'user'
+        default: 'user',
+        index: true
     },
-    // ---------- Tracking ----------
+
+    // ============================================
+    // ACTIVITY TRACKING
+    // ============================================
     lastLoginAt: {
         type: Date,
         default: null
     },
     totalDeposited: {
         type: Number,
-        default: 0
+        default: 0,
+        min: 0
     },
     totalWithdrawn: {
         type: Number,
-        default: 0
+        default: 0,
+        min: 0
+    },
+
+    // ============================================
+    // ACCOUNT STATUS
+    // ============================================
+    status: {
+        type: String,
+        enum: ['active', 'suspended', 'banned'],
+        default: 'active',
+        index: true
     }
-}, { timestamps: true });
+
+}, {
+    timestamps: true,
+    toJSON: {
+        transform: function (doc, ret) {
+            // Never expose password hash in JSON responses
+            delete ret.password;
+            delete ret.__v;
+            return ret;
+        }
+    }
+});
+
+// ============================================
+// INDEXES
+// ============================================
+
+// Fast lookup by username for signin
+UserSchema.index({ username: 1 });
+
+// Fast lookup by email for KYC resend
+UserSchema.index({ email: 1 });
+
+// Fast lookup for admin dashboard (active users)
+UserSchema.index({ lastLoginAt: -1 });
+
+// ============================================
+// VIRTUAL FIELDS
+// ============================================
+
+// Computed: net profit/loss across all deposits/withdrawals
+UserSchema.virtual('netCashflow').get(function () {
+    return parseFloat((this.totalWithdrawn - this.totalDeposited).toFixed(2));
+});
+
+// Computed: is user currently self-excluded?
+UserSchema.virtual('isCurrentlyExcluded').get(function () {
+    if (!this.selfExcluded) return false;
+    if (!this.selfExcludedUntil) return false;
+    return this.selfExcludedUntil > new Date();
+});
+
+// ============================================
+// INSTANCE METHODS
+// ============================================
+
+// Check if user can place a bet (not excluded, account active)
+UserSchema.methods.canPlaceBet = function () {
+    if (this.status !== 'active') return false;
+    if (this.selfExcluded && this.selfExcludedUntil > new Date()) return false;
+    return true;
+};
+
+// Safe public representation (no password, no internal fields)
+UserSchema.methods.toPublic = function () {
+    return {
+        userId: this._id,
+        username: this.username,
+        balance: this.balance,
+        email: this.email,
+        emailVerified: this.emailVerified,
+        phone: this.phone,
+        phoneVerified: this.phoneVerified,
+        role: this.role,
+        status: this.status,
+        selfExcluded: this.selfExcluded,
+        selfExcludedUntil: this.selfExcludedUntil,
+        limits: this.limits,
+        totalDeposited: this.totalDeposited,
+        totalWithdrawn: this.totalWithdrawn,
+        lastLoginAt: this.lastLoginAt,
+        createdAt: this.createdAt
+    };
+};
 
 module.exports = mongoose.model('User', UserSchema);
