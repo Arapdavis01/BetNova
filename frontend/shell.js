@@ -1,7 +1,7 @@
 // ============================================
 // BetNova — Shared Shell Logic
 // Session · Wallet · Bet Slip · Referral · KYC · Live Wins
-// Shared across: home, aviator, sports, cashier, promotions
+// Shared across: home, aviator, sports, crash, cashier, promotions
 // ============================================
 
 // ---------- API Base Detection ----------
@@ -29,8 +29,8 @@ const socket = io(API_BASE || undefined, {
 let currentUser = null;
 let currentCategory = 'featured';
 let userSnapshot = null;
-let pendingAuthAction = null;   // callback to run after successful signin
-let pendingSelection = null;     // { matchExternalId, pick, ... } for anonymous bet slip
+let pendingAuthAction = null;
+let pendingSelection = null;
 
 // ---------- Storage Keys ----------
 const LS = {
@@ -51,6 +51,10 @@ const bus = new EventTarget();
 
 function emitEvent(name, detail) {
     bus.dispatchEvent(new CustomEvent(name, { detail }));
+    // Also fire on window so page scripts can listen with addEventListener
+    try {
+        window.dispatchEvent(new CustomEvent(name, { detail }));
+    } catch (_) {}
 }
 
 // ============================================
@@ -195,7 +199,7 @@ function checkSession() {
         userZone?.classList.remove('flex');
     }
 
-    // Update shared UI (bet slip badge on every page)
+    // Notify all listeners (crash.js, aviator.js, sports.js, etc.)
     emitEvent('session:changed', { user: currentUser });
 }
 
@@ -285,10 +289,8 @@ async function handleAuth(event, type) {
             checkSession();
             showToast(`Welcome back, ${data.username}!`, 'success');
 
-            // Restore pending selection (anonymous odd click → signin)
             restorePendingSelection();
 
-            // Run pending auth action (e.g., user clicked "Place Bet" without login)
             if (typeof pendingAuthAction === 'function') {
                 const action = pendingAuthAction;
                 pendingAuthAction = null;
@@ -356,7 +358,6 @@ function showSignInPrompt(message) {
 
     openModal('signin-modal');
 
-    // Focus username input
     setTimeout(() => {
         document.getElementById('signin-user')?.focus();
     }, 100);
@@ -385,9 +386,9 @@ function addToBetSlip(selection) {
 
     if (existingIdx >= 0) {
         if (slip[existingIdx].pick === selection.pick) {
-            slip.splice(existingIdx, 1);    // toggle off
+            slip.splice(existingIdx, 1);
         } else {
-            slip[existingIdx] = selection;   // replace pick
+            slip[existingIdx] = selection;
         }
     } else {
         if (slip.length >= 20) {
@@ -406,6 +407,7 @@ function removeFromBetSlip(matchExternalId) {
     saveBetSlip(slip);
 }
 
+// ✅ Canonical name — this is what the export uses
 function clearSharedBetSlip() {
     saveBetSlip([]);
 }
@@ -426,7 +428,7 @@ function updateBetslipBadge() {
 }
 
 // ============================================
-// PENDING SELECTION (anonymous bet slip)
+// PENDING SELECTION
 // ============================================
 function storePendingSelection(selection) {
     localStorage.setItem(LS.PENDING_SELECTION, JSON.stringify(selection));
@@ -454,18 +456,13 @@ function restorePendingSelection() {
 
 // ============================================
 // HANDLE ODD CLICK FROM ANY PAGE
-// Called by match cards on home + soccer page
 // ============================================
 function handleOddClick(selection) {
     if (!currentUser) {
-        // Store pending selection
         storePendingSelection(selection);
 
-        // Prompt sign-in
         requireAuth(
             () => {
-                // This runs after successful signin — add selection
-                // (restorePendingSelection already does it, but call again for safety)
                 addToBetSlip(selection);
             },
             'Sign in to save your bet'
@@ -473,7 +470,6 @@ function handleOddClick(selection) {
         return;
     }
 
-    // Logged in — add to slip
     if (addToBetSlip(selection)) {
         showToast(
             `${selection.homeTeam} vs ${selection.awayTeam} added`,
@@ -836,11 +832,9 @@ function initSearch() {
 // ============================================
 function highlightCurrentPage() {
     const path = window.location.pathname;
-
-    // Normalize /sports → /soccer for active state
     const normalized = path.startsWith('/sports') ? '/soccer' + path.slice(7) : path;
 
-    document.querySelectorAll('.shell-nav-link, .shell-bottom-item, .shell-mobile-links a, .spo-quick-nav a, .spo-bottom-item, .avi-quick-nav a').forEach(link => {
+    document.querySelectorAll('.shell-nav-link, .shell-bottom-item, .shell-mobile-links a, .spo-quick-nav a, .spo-bottom-item, .avi-quick-nav a, .cr-quick-nav a, .cr-bottom-item').forEach(link => {
         const href = link.getAttribute('href');
         if (!href) return;
         const hrefNorm = href.startsWith('/sports') ? '/soccer' + href.slice(7) : href;
@@ -893,7 +887,6 @@ document.addEventListener('DOMContentLoaded', () => {
     bumpJackpot();
     setInterval(bumpJackpot, 2000);
 
-    // Fallback live wins seed
     setTimeout(() => {
         if (liveWins.length === 0) {
             liveWins.push(
@@ -906,7 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ============================================
-// GLOBAL EXPORTS (used by page scripts)
+// GLOBAL EXPORTS
 // ============================================
 window.BetNova = {
     // State
@@ -938,7 +931,7 @@ window.BetNova = {
     getBetSlip,
     addToBetSlip,
     removeFromBetSlip,
-    clearSharedBetSlip: clearBetSlip,
+    clearSharedBetSlip,          // ✅ FIXED — now points to the real function
     getBetSlipCount,
     handleOddClick,
     updateBetslipBadge,
