@@ -3,133 +3,340 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BetNova - Premium Crash Experience</title>
+    <title>BetNova — Premium Crash Gaming</title>
+    <meta name="description" content="Play BetNova's provably fair crash game. Instant M-Pesa deposits. Cash out before the plane flies away.">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@600;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
 </head>
-<body class="bg-[#0f111a] text-white font-sans min-h-screen flex flex-col justify-between">
+<body class="min-h-screen flex flex-col">
 
-    <!-- Header Navbar Component -->
-    <header class="bg-[#161926] border-b border-[#24293e] px-6 py-4 flex justify-between items-center shadow-lg">
-        <h1 class="text-2xl font-black tracking-wider text-red-500 uppercase">Bet<span class="text-white">Nova</span></h1>
-        <div id="auth-zone" class="flex gap-3">
-            <button onclick="openModal('signin-modal')" class="px-5 py-2 bg-[#222538] hover:bg-[#2d314a] rounded-lg font-medium transition">Sign In</button>
-            <button onclick="openModal('signup-modal')" class="px-5 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold transition shadow-lg shadow-red-600/20">Sign Up</button>
-        </div>
-        <div id="user-zone" class="hidden items-center gap-4">
-            <div class="bg-[#1e2235] px-4 py-2 rounded-lg border border-[#2d314a]">
-                <span class="text-xs text-gray-400 block uppercase font-bold tracking-tight">Wallet Balance</span>
-                <span id="balance-display" class="text-green-400 font-extrabold text-sm">$0.00</span>
+    <!-- ============ HEADER ============ -->
+    <header class="glass-header sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center">
+
+            <!-- Logo -->
+            <div class="flex items-center gap-3">
+                <div class="logo-mark"></div>
+                <h1 class="text-2xl font-black tracking-tight">
+                    <span class="text-white">Bet</span><span class="text-gradient-red">Nova</span>
+                </h1>
+                <span class="hidden md:inline-block ml-3 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30 rounded-full">
+                    ● Live
+                </span>
             </div>
-            <span id="user-display" class="font-bold text-gray-200">User</span>
-            <button onclick="handleLogout()" class="text-xs text-gray-400 hover:text-red-400 underline">Logout</button>
+
+            <!-- Auth zone (when logged out) -->
+            <div id="auth-zone" class="flex gap-2">
+                <button onclick="openModal('signin-modal')" class="btn-ghost">Sign In</button>
+                <button onclick="openModal('signup-modal')" class="btn-primary">Create Account</button>
+            </div>
+
+            <!-- User zone (when logged in) -->
+            <div id="user-zone" class="hidden items-center gap-2 md:gap-3">
+                <button onclick="openModal('deposit-modal')" class="btn-deposit">
+                    <span>＋</span> Deposit
+                </button>
+                <button onclick="openModal('withdraw-modal')" class="btn-withdraw hidden md:flex">
+                    Withdraw
+                </button>
+                <div class="wallet-chip">
+                    <span class="text-[10px] uppercase tracking-wider text-gray-400 block leading-none">Balance</span>
+                    <span id="balance-display" class="text-green-400 font-black text-sm leading-tight">KES 0.00</span>
+                </div>
+                <div class="relative group">
+                    <button class="user-avatar" id="user-display">U</button>
+                    <div class="user-menu">
+                        <div class="px-3 py-2 border-b border-white/10">
+                            <p class="text-xs text-gray-400">Signed in as</p>
+                            <p id="user-display-name" class="font-bold text-sm">User</p>
+                        </div>
+                        <button onclick="openModal('deposit-modal')" class="user-menu-item">💳 Deposit</button>
+                        <button onclick="openModal('withdraw-modal')" class="user-menu-item">💸 Withdraw</button>
+                        <button onclick="openModal('history-modal')" class="user-menu-item">📜 History</button>
+                        <button onclick="handleLogout()" class="user-menu-item text-red-400">Log Out</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
-    <!-- Main Dynamic Application Segment -->
-    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- ============ MAIN ============ -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        <!-- Interactive Multiplier Monitor & Graphic Canvas Frame -->
-        <div class="lg:col-span-2 flex flex-col gap-4">
-            <div class="relative bg-[#161926] border border-[#24293e] rounded-2xl h-80 flex flex-col items-center justify-center overflow-hidden shadow-2xl">
+        <!-- LEFT: Game + Betting -->
+        <div class="lg:col-span-2 flex flex-col gap-5">
 
-                <!-- Gated Guard Overlay -->
-                <div id="game-lock" class="absolute inset-0 bg-[#0f111a]/95 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
-                    <div class="bg-red-500/10 border border-red-500/20 p-4 rounded-full mb-3 text-red-500">🔒</div>
-                    <h3 class="text-lg font-bold">Access Restricted</h3>
-                    <p class="text-sm text-gray-400 max-w-xs mt-1">Authenticate your student account profile to unlock dynamic flight metrics.</p>
+            <!-- Game Canvas -->
+            <div class="relative game-panel h-[420px] flex flex-col items-center justify-center overflow-hidden">
+
+                <div id="game-lock" class="absolute inset-0 bg-[#0a0e1a]/95 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
+                    <div class="lock-icon">🔒</div>
+                    <h3 class="text-xl font-bold mt-4">Sign In to Play</h3>
+                    <p class="text-sm text-gray-400 max-w-xs mt-2">Create your account or sign in to join the live round.</p>
+                    <button onclick="openModal('signup-modal')" class="btn-primary mt-5">Create Account</button>
                 </div>
 
-                <!-- Live Multiplier Display -->
-                <div class="absolute top-8 text-center z-10 pointer-events-none">
-                    <h2 id="multiplier-text" class="text-5xl md:text-6xl font-black tracking-tight text-white transition-all duration-75">1.00x</h2>
-                    <p id="status-text" class="text-xs text-gray-500 uppercase tracking-widest mt-1">Awaiting round</p>
+                <div class="absolute top-6 text-center z-10 pointer-events-none">
+                    <div class="text-[10px] uppercase tracking-[0.3em] text-gray-500 mb-1" id="status-text">Awaiting Round</div>
+                    <h2 id="multiplier-text" class="multiplier-display">1.00<span class="text-4xl">x</span></h2>
                 </div>
 
-                <canvas id="flight-canvas" class="w-full h-full block"></canvas>
+                <canvas id="flight-canvas" class="absolute inset-0 w-full h-full"></canvas>
+
+                <div class="absolute bottom-4 left-4 flex items-center gap-2 text-xs text-gray-500">
+                    <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                    <span id="active-count">0</span> players in this round
+                </div>
+
+                <div class="absolute bottom-4 right-4 flex items-center gap-1 text-[10px] uppercase tracking-wider text-gray-500">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+                    Provably Fair
+                </div>
             </div>
 
-            <!-- Betting Setup Layout Box -->
-            <div class="relative bg-[#161926] border border-[#24293e] p-6 rounded-2xl grid grid-cols-1 md:grid-cols-3 gap-4 shadow-xl">
-                <div id="bet-lock" class="absolute inset-0 bg-[#0f111a]/90 backdrop-blur-sm z-40 flex items-center justify-center rounded-2xl">
-                    <p class="text-sm font-medium text-gray-400">Sign in to unlock interactive bet configurations.</p>
+            <!-- Betting Panel -->
+            <div class="relative game-panel p-5">
+                <div id="bet-lock" class="absolute inset-0 bg-[#0a0e1a]/95 backdrop-blur-sm z-40 flex items-center justify-center rounded-2xl">
+                    <p class="text-sm font-medium text-gray-400">Sign in to place bets</p>
                 </div>
 
-                <div>
-                    <label class="block text-xs uppercase font-bold text-gray-400 mb-2 tracking-wider">Bet Amount ($)</label>
-                    <input type="number" id="bet-input" value="10.00" min="1" step="1" class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-red-500 transition text-white">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+
+                    <div class="md:col-span-3">
+                        <label class="input-label">Bet Amount (KES)</label>
+                        <div class="relative">
+                            <input type="number" id="bet-input" value="10" min="10" step="10" class="input-field pl-3 pr-14">
+                            <span class="input-suffix">KES</span>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-3">
+                        <label class="input-label">Quick Stake</label>
+                        <div class="grid grid-cols-4 gap-1">
+                            <button onclick="setBet(10)" class="chip">10</button>
+                            <button onclick="setBet(50)" class="chip">50</button>
+                            <button onclick="setBet(100)" class="chip">100</button>
+                            <button onclick="setBet(500)" class="chip">500</button>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-3">
+                        <label class="input-label">Auto Cashout</label>
+                        <div class="relative">
+                            <input type="number" id="auto-cashout" min="1.01" step="0.01" placeholder="Off" class="input-field pl-3 pr-8">
+                            <span class="input-suffix">x</span>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-3 flex items-end">
+                        <div class="grid grid-cols-1 gap-2 w-full">
+                            <button id="place-bet-btn" class="btn-play">Place Bet</button>
+                            <button id="cashout-btn" disabled class="btn-cashout">Cash Out</button>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="flex items-end">
-                    <button id="place-bet-btn" class="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-bold transition shadow-lg shadow-green-600/20">
-                        Place Bet
-                    </button>
-                </div>
-
-                <div class="flex items-end">
-                    <button id="cashout-btn" disabled class="w-full px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-bold transition shadow-lg shadow-amber-500/20">
-                        Cash Out
-                    </button>
-                </div>
-
-                <div class="md:col-span-3 text-xs text-gray-400 flex justify-between pt-2 border-t border-[#24293e]">
-                    <span>Active Players: <span id="active-count" class="text-white font-bold">0</span></span>
-                    <span id="bet-status" class="text-gray-500">No active bet</span>
+                <div class="mt-4 flex justify-between items-center text-xs text-gray-500 border-t border-white/5 pt-3">
+                    <span id="bet-status">Ready to bet</span>
+                    <span>Min: KES 10 · Max: KES 100,000</span>
                 </div>
             </div>
         </div>
 
-        <!-- Live Network Feed -->
-        <aside class="bg-[#161926] border border-[#24293e] rounded-2xl p-4 shadow-2xl flex flex-col max-h-[600px]">
-            <h3 class="text-sm uppercase font-bold tracking-wider text-gray-300 mb-3 border-b border-[#24293e] pb-2">Live Network Feed</h3>
+        <!-- RIGHT: Live Feed + Stats -->
+        <aside class="flex flex-col gap-5">
 
-            <div class="mb-3">
-                <p class="text-xs uppercase font-bold text-gray-500 mb-1">Recent Crashes</p>
-                <div id="crash-history" class="flex flex-wrap gap-1">
-                    <span class="text-xs text-gray-500">— no data —</span>
+            <!-- Recent Crashes -->
+            <div class="game-panel p-4">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="section-title">Recent Crashes</h3>
+                    <span class="text-[10px] text-gray-500 uppercase tracking-wider">Last 20</span>
+                </div>
+                <div id="crash-history" class="flex flex-wrap gap-1.5">
+                    <span class="text-xs text-gray-500">Loading...</span>
                 </div>
             </div>
 
-            <div id="feed-container" class="flex-1 overflow-y-auto space-y-1 pr-1 text-xs">
-                <div class="p-2 bg-[#1e2235] rounded border border-[#2d314a] text-gray-300">
-                    ⚡ Awaiting backend synchronization...
+            <!-- Live Feed -->
+            <div class="game-panel p-4 flex-1 flex flex-col max-h-[400px]">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="section-title">Live Activity</h3>
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                </div>
+                <div id="feed-container" class="flex-1 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                    <div class="feed-item">
+                        <span class="text-gray-500">Connecting to server...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trust badges -->
+            <div class="game-panel p-4">
+                <h3 class="section-title mb-3">Trusted & Secure</h3>
+                <div class="grid grid-cols-2 gap-2 text-[10px] text-gray-400">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-green-400">✓</span> BCLB Licensed
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-green-400">✓</span> M-Pesa Instant
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-green-400">✓</span> Provably Fair
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-green-400">✓</span> 18+ Only
+                    </div>
                 </div>
             </div>
         </aside>
     </main>
 
-    <footer class="text-center text-xs text-gray-600 py-4 border-t border-[#24293e]">
-        © 2026 BetNova Academic Project Layer System. All rights reserved.
+    <!-- ============ FOOTER ============ -->
+    <footer class="border-t border-white/5 mt-6">
+        <div class="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 md:grid-cols-4 gap-6 text-xs text-gray-500">
+            <div>
+                <h4 class="text-white font-bold mb-2">BetNova</h4>
+                <p>Premium crash gaming. Provably fair. Instant M-Pesa.</p>
+                <p class="mt-2">Licensed by BCLB · License #BCLB/2026/XXXX</p>
+            </div>
+            <div>
+                <h4 class="text-white font-bold mb-2">Quick Links</h4>
+                <a href="#" class="block hover:text-white">Terms of Service</a>
+                <a href="#" class="block hover:text-white">Privacy Policy</a>
+                <a href="#" class="block hover:text-white">Responsible Gambling</a>
+            </div>
+            <div>
+                <h4 class="text-white font-bold mb-2">Support</h4>
+                <a href="#" class="block hover:text-white">Help Center</a>
+                <a href="#" class="block hover:text-white">Contact Us</a>
+                <a href="#" class="block hover:text-white">FAQs</a>
+            </div>
+            <div>
+                <h4 class="text-white font-bold mb-2">Play Responsibly</h4>
+                <p>Gambling should be fun, not a way to make money. Only bet what you can afford to lose.</p>
+                <p class="mt-2 text-red-400 font-bold">18+</p>
+            </div>
+        </div>
+        <div class="border-t border-white/5 py-4 text-center text-[10px] text-gray-600">
+            © 2026 BetNova Gaming Ltd. All rights reserved.
+        </div>
     </footer>
 
-    <!-- Sign In Modal -->
-    <div id="signin-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-[#161926] border border-[#24293e] rounded-2xl w-full max-w-sm p-6 relative shadow-2xl">
-            <button onclick="closeModal('signin-modal')" class="absolute top-3 right-4 text-gray-500 hover:text-white text-xl">×</button>
-            <h2 class="text-xl font-black mb-1">Sign In</h2>
-            <p class="text-xs text-gray-400 mb-4">Authenticate Account</p>
-            <form onsubmit="handleAuth(event, 'signin')" class="space-y-3">
-                <input id="signin-user" type="text" placeholder="Username" required class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500">
-                <input id="signin-pass" type="password" placeholder="Password" required class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500">
-                <button type="submit" class="w-full py-3 bg-red-600 hover:bg-red-700 rounded-xl font-bold transition">Sign In</button>
+    <!-- ============ MODALS ============ -->
+
+    <!-- Sign In -->
+    <div id="signin-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <button onclick="closeModal('signin-modal')" class="modal-close">×</button>
+            <div class="modal-icon">🔓</div>
+            <h2 class="modal-title">Welcome Back</h2>
+            <p class="modal-subtitle">Sign in to continue playing</p>
+            <form onsubmit="handleAuth(event, 'signin')" class="space-y-3 mt-5">
+                <input id="signin-user" type="text" placeholder="Username" required class="input-field">
+                <input id="signin-pass" type="password" placeholder="Password" required class="input-field">
+                <button type="submit" class="btn-primary w-full mt-2">Sign In</button>
             </form>
+            <p class="text-center text-xs text-gray-500 mt-4">
+                No account? <button onclick="closeModal('signin-modal'); openModal('signup-modal')" class="text-red-400 hover:underline">Create one</button>
+            </p>
         </div>
     </div>
 
-    <!-- Sign Up Modal -->
-    <div id="signup-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-[#161926] border border-[#24293e] rounded-2xl w-full max-w-sm p-6 relative shadow-2xl">
-            <button onclick="closeModal('signup-modal')" class="absolute top-3 right-4 text-gray-500 hover:text-white text-xl">×</button>
-            <h2 class="text-xl font-black mb-1">Create Student Account</h2>
-            <p class="text-xs text-gray-400 mb-4">Register Profile</p>
-            <form onsubmit="handleAuth(event, 'signup')" class="space-y-3">
-                <input id="signup-user" type="text" placeholder="Username" required class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500">
-                <input id="signup-pass" type="password" placeholder="Password" required class="w-full bg-[#1e2235] border border-[#2d314a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500">
-                <button type="submit" class="w-full py-3 bg-red-600 hover:bg-red-700 rounded-xl font-bold transition">Register Profile</button>
+    <!-- Sign Up -->
+    <div id="signup-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <button onclick="closeModal('signup-modal')" class="modal-close">×</button>
+            <div class="modal-icon">✨</div>
+            <h2 class="modal-title">Create Account</h2>
+            <p class="modal-subtitle">Join thousands of players</p>
+            <form onsubmit="handleAuth(event, 'signup')" class="space-y-3 mt-5">
+                <input id="signup-user" type="text" placeholder="Username" required minlength="3" class="input-field">
+                <input id="signup-pass" type="password" placeholder="Password (min 4 chars)" required minlength="4" class="input-field">
+                <div class="flex items-start gap-2 text-xs text-gray-400 mt-3">
+                    <input type="checkbox" id="age-check" required class="mt-0.5 accent-red-500">
+                    <label for="age-check">I confirm I am 18 years or older and accept the Terms of Service</label>
+                </div>
+                <button type="submit" class="btn-primary w-full mt-2">Create Account</button>
             </form>
+            <p class="text-center text-xs text-gray-500 mt-4">
+                Already have an account? <button onclick="closeModal('signup-modal'); openModal('signin-modal')" class="text-red-400 hover:underline">Sign in</button>
+            </p>
         </div>
     </div>
+
+    <!-- Deposit -->
+    <div id="deposit-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <button onclick="closeModal('deposit-modal')" class="modal-close">×</button>
+            <div class="modal-icon">💳</div>
+            <h2 class="modal-title">Deposit Funds</h2>
+            <p class="modal-subtitle">Instant M-Pesa STK Push</p>
+            <div class="space-y-3 mt-5">
+                <div>
+                    <label class="input-label">Amount (KES)</label>
+                    <input id="deposit-amount" type="number" value="100" min="10" max="150000" step="10" class="input-field">
+                </div>
+                <div>
+                    <label class="input-label">M-Pesa Phone Number</label>
+                    <input id="deposit-phone" type="tel" placeholder="0712345678" class="input-field">
+                </div>
+                <div class="grid grid-cols-4 gap-1">
+                    <button onclick="setDeposit(50)" class="chip">50</button>
+                    <button onclick="setDeposit(100)" class="chip">100</button>
+                    <button onclick="setDeposit(500)" class="chip">500</button>
+                    <button onclick="setDeposit(1000)" class="chip">1000</button>
+                </div>
+                <button onclick="handleDeposit()" class="btn-primary w-full mt-2">Send M-Pesa Request</button>
+                <p class="text-[10px] text-gray-500 text-center mt-2">
+                    You will receive a PIN prompt on your phone. Enter your M-Pesa PIN to complete the deposit.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Withdraw -->
+    <div id="withdraw-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <button onclick="closeModal('withdraw-modal')" class="modal-close">×</button>
+            <div class="modal-icon">💸</div>
+            <h2 class="modal-title">Withdraw Funds</h2>
+            <p class="modal-subtitle">Sent to M-Pesa within minutes</p>
+            <div class="space-y-3 mt-5">
+                <div>
+                    <label class="input-label">Amount (KES)</label>
+                    <input id="withdraw-amount" type="number" value="100" min="50" step="10" class="input-field">
+                </div>
+                <div>
+                    <label class="input-label">M-Pesa Phone Number</label>
+                    <input id="withdraw-phone" type="tel" placeholder="0712345678" class="input-field">
+                </div>
+                <button onclick="handleWithdraw()" class="btn-primary w-full mt-2">Withdraw to M-Pesa</button>
+                <p class="text-[10px] text-gray-500 text-center mt-2">
+                    Minimum withdrawal: KES 50 · Processed within 5 minutes
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- History -->
+    <div id="history-modal" class="modal-overlay hidden">
+        <div class="modal-card max-w-lg">
+            <button onclick="closeModal('history-modal')" class="modal-close">×</button>
+            <div class="modal-icon">📜</div>
+            <h2 class="modal-title">Bet History</h2>
+            <p class="modal-subtitle">Your recent bets and outcomes</p>
+            <div id="history-list" class="mt-5 max-h-80 overflow-y-auto space-y-2">
+                <p class="text-sm text-gray-500 text-center py-8">No bets yet</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast hidden"></div>
 
     <script src="app.js"></script>
 </body>
