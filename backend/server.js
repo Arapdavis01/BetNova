@@ -83,11 +83,12 @@ app.use('/api/promotions', promotionRoutes);
 if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../frontend');
 
-    // ---------- Named page routes (specific routes FIRST) ----------
+    // ---------- Named page routes ----------
+    // Serve the exact file for each route
     const pageRoutes = [
         { path: '/aviator', file: 'aviator/index.html' },
         { path: '/crash', file: 'index.html' },
-        { path: '/sports', file: 'sports/index.html' },
+        { path: '/soccer', file: 'sports/index.html' },      // ← renamed from /sports
         { path: '/cashier', file: 'cashier/index.html' },
         { path: '/promotions', file: 'promotions/index.html' },
         { path: '/admin', file: 'admin.html' }
@@ -102,10 +103,14 @@ if (process.env.NODE_ENV === 'production') {
         });
     }
 
+    // ---------- Backward compatibility: /sports → /soccer ----------
+    app.get('/sports', (req, res) => res.redirect(301, '/soccer'));
+    app.get('/sports/', (req, res) => res.redirect(301, '/soccer/'));
+
     // ---------- Static assets ----------
     app.use(express.static(frontendPath));
 
-    // ---------- SPA fallback (main app) ----------
+    // ---------- SPA fallback ----------
     app.get(/^\/(?!api|socket\.io).*/, (req, res) => {
         res.sendFile(path.join(frontendPath, 'index.html'));
     });
@@ -138,16 +143,9 @@ let gameState = {
     serverSeedHash: null
 };
 
-// Runtime bet registry — keyed by `${socketId}:${panel}`
 const activeBets = new Map();
-
-// Current secret seed (revealed after crash)
 let currentServerSeed = null;
-
-// In-memory crash history for fast broadcast (last 20)
 const crashHistory = [];
-
-// Chat online tracking
 const onlineUsers = new Set();
 
 const CURRENCY = 'KES';
@@ -173,7 +171,6 @@ function broadcastState() {
     io.emit('chat_online', onlineUsers.size);
 }
 
-// ---------- All Bets Feed ----------
 function getPublicBets() {
     const bets = [];
     for (const bet of activeBets.values()) {
@@ -273,7 +270,6 @@ function launchMultiplier() {
             let increment = gameState.multiplier < 3.0 ? 0.02 : 0.07;
             gameState.multiplier = parseFloat((gameState.multiplier + increment).toFixed(2));
 
-            // Server-side auto-cashout check
             for (const [key, bet] of activeBets.entries()) {
                 if (!bet.cashedOut && bet.autoCashout && gameState.multiplier >= bet.autoCashout) {
                     executeCashOut(key, bet);
@@ -285,7 +281,6 @@ function launchMultiplier() {
     }, 100);
 }
 
-// ---------- Reusable cash-out (manual + auto) ----------
 async function executeCashOut(betKey, bet) {
     if (!bet || bet.cashedOut) return;
     if (gameState.status !== 'FLYING') return;
@@ -295,7 +290,6 @@ async function executeCashOut(betKey, bet) {
     const payout = parseFloat((bet.amount * gameState.multiplier).toFixed(2));
     const profit = parseFloat((payout - bet.amount).toFixed(2));
 
-    // Credit user balance (winnings → main balance)
     try {
         const user = await User.findById(bet.userId);
         if (user) {
@@ -307,7 +301,6 @@ async function executeCashOut(betKey, bet) {
         console.error('Balance credit error:', err.message);
     }
 
-    // Persist winning bet
     try {
         await Bet.create({
             userId: bet.userId,
@@ -324,7 +317,6 @@ async function executeCashOut(betKey, bet) {
         console.error('Bet persist error:', err.message);
     }
 
-    // Audit log
     try {
         await AuditLog.create({
             action: bet.autoCashout ? 'BET_AUTO_CASHED_OUT' : 'BET_CASHED_OUT',
@@ -340,7 +332,6 @@ async function executeCashOut(betKey, bet) {
         });
     } catch (_) {}
 
-    // Notify client
     io.to(bet.socketId).emit('bet_cashed', {
         payout,
         multiplier: gameState.multiplier,
@@ -391,7 +382,6 @@ async function explodePlane() {
         crashPoint: gameState.crashPoint
     });
 
-    // Notify losing bets
     for (const [key, bet] of activeBets.entries()) {
         if (!bet.cashedOut) {
             io.to(bet.socketId).emit('bet_lost', {
@@ -435,7 +425,6 @@ async function explodePlane() {
 io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
 
-    // Initial snapshot
     socket.emit('betnova_tick', gameState);
     socket.emit('crash_history', crashHistory);
     socket.emit('active_bets_count', activeBets.size);
@@ -449,7 +438,6 @@ io.on('connection', (socket) => {
         });
     }
 
-    // Recent chat history
     (async () => {
         try {
             const recent = await ChatMessage.find()
@@ -460,14 +448,12 @@ io.on('connection', (socket) => {
         } catch (_) {}
     })();
 
-    // ---------- Chat online tracking ----------
     socket.on('chat_join', ({ username }) => {
         socket.data.username = username || 'Anonymous';
         onlineUsers.add(socket.id);
         io.emit('chat_online', onlineUsers.size);
     });
 
-    // ---------- Chat message ----------
     socket.on('chat_message', async ({ userId, username, message }) => {
         try {
             if (!message || message.trim().length === 0) return;
@@ -493,7 +479,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // ---------- Place Bet (Aviator — supports dual panels) ----------
     socket.on('place_bet', async ({ userId, amount, panel = 1, autoCashout = null }) => {
         try {
             if (gameState.status !== 'WAITING') {
@@ -516,12 +501,10 @@ io.on('connection', (socket) => {
             const user = await User.findById(userId);
             if (!user) return socket.emit('bet_error', 'User not found.');
 
-            // Account status
             if (user.status && user.status !== 'active') {
                 return socket.emit('bet_error', 'Your account is not active.');
             }
 
-            // Self-exclusion
             if (user.selfExcluded && user.selfExcludedUntil > new Date()) {
                 return socket.emit('bet_error', 'You are self-excluded from betting.');
             }
@@ -530,7 +513,6 @@ io.on('connection', (socket) => {
                 user.selfExcludedUntil = null;
             }
 
-            // Daily wager limit
             if (user.limits && user.limits.dailyWagerLimit) {
                 const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
                 const todayWagered = await Bet.aggregate([
@@ -546,14 +528,12 @@ io.on('connection', (socket) => {
                 }
             }
 
-            // Consume balance (main first, then bonus)
             const consumed = user.consumeBalance(amt);
             if (!consumed) {
                 return socket.emit('bet_error', 'Insufficient funds.');
             }
             await user.save();
 
-            // Register active bet
             activeBets.set(betKey, {
                 socketId: socket.id,
                 userId: user._id.toString(),
@@ -566,12 +546,10 @@ io.on('connection', (socket) => {
                 avatarColor: `hsl(${Math.floor(Math.random() * 360)}, 70%, 55%)`
             });
 
-            // ---------- Contribute to jackpot pools ----------
             jackpotService.contributeToJackpots(amt, user._id, user.username).catch(err =>
                 console.error('[Bet] Jackpot contribution failed:', err.message)
             );
 
-            // Audit log
             try {
                 await AuditLog.create({
                     action: 'BET_PLACED',
@@ -602,7 +580,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // ---------- Cash Out (Aviator — supports dual panels) ----------
     socket.on('cash_out', async ({ panel = 1 } = {}) => {
         try {
             const betKey = `${socket.id}:${panel}`;
@@ -622,14 +599,12 @@ io.on('connection', (socket) => {
         }
     });
 
-    // ---------- Disconnect ----------
     socket.on('disconnect', async () => {
         console.log(`Client disconnected: ${socket.id}`);
 
         onlineUsers.delete(socket.id);
         io.emit('chat_online', onlineUsers.size);
 
-        // Refund any pending bets for this socket (both panels)
         for (const [key, bet] of activeBets.entries()) {
             if (bet.socketId !== socket.id) continue;
 
@@ -637,7 +612,6 @@ io.on('connection', (socket) => {
                 try {
                     const user = await User.findById(bet.userId);
                     if (user) {
-                        // Refund to main balance (refunds never go to bonus)
                         user.creditWinnings(bet.amount);
                         await user.save();
                     }
@@ -668,7 +642,6 @@ setInterval(() => {
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(async () => {
-    // Resume roundId from DB
     try {
         const lastRound = await Round.findOne()
             .sort({ roundId: -1 })
@@ -688,7 +661,6 @@ connectDB().then(async () => {
         gameState.roundId = 0;
     }
 
-    // Ensure jackpot pools exist
     try {
         await jackpotService.ensureJackpots();
     } catch (err) {
@@ -705,17 +677,13 @@ connectDB().then(async () => {
         console.log(`🛡️  Responsible Gambling: ENABLED`);
         console.log(`🎛️  Admin API: ${process.env.ADMIN_TOKEN ? 'ENABLED' : 'DISABLED'}`);
         console.log(`✈️  Aviator: ENABLED (/aviator)`);
-        console.log(`🏆 Sports Betting: ${process.env.ODDS_API_KEY ? 'ENABLED (/sports)' : 'DISABLED (no ODDS_API_KEY)'}`);
+        console.log(`⚽ Soccer: ${process.env.ODDS_API_KEY ? 'ENABLED (/soccer)' : 'DISABLED (no ODDS_API_KEY)'}`);
         console.log(`💰 Wallet & Referral: ENABLED (/api/wallet)`);
         console.log(`👤 Profile API: ENABLED (/api/profile)`);
         console.log(`🎰 Jackpots: ENABLED (daily/weekly/mega)`);
         console.log(`🎁 Promotions: ENABLED (/api/promotions)`);
 
         runEngineLoop();
-
-        // ============================================
-        // BACKGROUND JOBS
-        // ============================================
 
         // --- Jackpot draws (every 5 minutes) ---
         setInterval(() => {
@@ -724,14 +692,13 @@ connectDB().then(async () => {
             );
         }, 5 * 60 * 1000);
 
-        // Check for due jackpot draws immediately on startup (in case server was down)
         setTimeout(() => {
             jackpotService.runDueDraws(io).catch(err =>
                 console.error('[Startup] Jackpot draw failed:', err.message)
             );
         }, 15000);
 
-        // --- Sports betting jobs (only if ODDS_API_KEY configured) ---
+        // --- Sports betting jobs ---
         if (process.env.ODDS_API_KEY) {
             setTimeout(() => {
                 fullRefresh().catch(err => console.error('[Startup] Odds refresh failed:', err.message));
