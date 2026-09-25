@@ -19,6 +19,7 @@ const adminRoutes = require('./routes/admin');
 const walletRoutes = require('./routes/wallet');
 const profileRoutes = require('./routes/profile');
 const sportsRoutes = require('./routes/sports');
+const promotionRoutes = require('./routes/promotions');
 
 // ---------- Models ----------
 const User = require('./models/User');
@@ -29,6 +30,7 @@ const AuditLog = require('./models/AuditLog');
 
 // ---------- Services ----------
 const provablyFair = require('./services/provablyFair');
+const jackpotService = require('./services/jackpot');
 const { fullRefresh } = require('./services/oddsProvider');
 const { runSettlementCycle } = require('./services/settler');
 
@@ -73,6 +75,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/sports', sportsRoutes);
+app.use('/api/promotions', promotionRoutes);
 
 // ============================================
 // SERVE FRONTEND (Production)
@@ -81,30 +84,23 @@ if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../frontend');
 
     // ---------- Named page routes (specific routes FIRST) ----------
-    app.get('/aviator', (req, res) => {
-        res.sendFile(path.join(frontendPath, 'aviator/index.html'));
-    });
-    app.get('/aviator/', (req, res) => {
-        res.sendFile(path.join(frontendPath, 'aviator/index.html'));
-    });
-    app.get('/crash', (req, res) => {
-        res.sendFile(path.join(frontendPath, 'index.html'));
-    });
-    app.get('/sports', (req, res) => {
-        res.sendFile(path.join(frontendPath, 'sports/index.html'));
-    });
-    app.get('/sports/', (req, res) => {
-        res.sendFile(path.join(frontendPath, 'sports/index.html'));
-    });
-    app.get('/cashier', (req, res) => {
-        res.sendFile(path.join(frontendPath, 'cashier/index.html'));
-    });
-    app.get('/cashier/', (req, res) => {
-        res.sendFile(path.join(frontendPath, 'cashier/index.html'));
-    });
-    app.get('/admin', (req, res) => {
-        res.sendFile(path.join(frontendPath, 'admin.html'));
-    });
+    const pageRoutes = [
+        { path: '/aviator', file: 'aviator/index.html' },
+        { path: '/crash', file: 'index.html' },
+        { path: '/sports', file: 'sports/index.html' },
+        { path: '/cashier', file: 'cashier/index.html' },
+        { path: '/promotions', file: 'promotions/index.html' },
+        { path: '/admin', file: 'admin.html' }
+    ];
+
+    for (const route of pageRoutes) {
+        app.get(route.path, (req, res) => {
+            res.sendFile(path.join(frontendPath, route.file));
+        });
+        app.get(route.path + '/', (req, res) => {
+            res.sendFile(path.join(frontendPath, route.file));
+        });
+    }
 
     // ---------- Static assets ----------
     app.use(express.static(frontendPath));
@@ -158,7 +154,6 @@ const CURRENCY = 'KES';
 
 // ============================================
 // EXPOSE TO ADMIN API
-// Admin routes read these via `global.*`
 // ============================================
 global.gameState = gameState;
 global.activeBetsCount = 0;
@@ -300,7 +295,7 @@ async function executeCashOut(betKey, bet) {
     const payout = parseFloat((bet.amount * gameState.multiplier).toFixed(2));
     const profit = parseFloat((payout - bet.amount).toFixed(2));
 
-    // ---------- Credit user balance (winnings → main balance) ----------
+    // Credit user balance (winnings → main balance)
     try {
         const user = await User.findById(bet.userId);
         if (user) {
@@ -551,7 +546,7 @@ io.on('connection', (socket) => {
                 }
             }
 
-            // ---------- Consume balance (main first, then bonus) ----------
+            // Consume balance (main first, then bonus)
             const consumed = user.consumeBalance(amt);
             if (!consumed) {
                 return socket.emit('bet_error', 'Insufficient funds.');
@@ -570,6 +565,11 @@ io.on('connection', (socket) => {
                 panel: parseInt(panel) || 1,
                 avatarColor: `hsl(${Math.floor(Math.random() * 360)}, 70%, 55%)`
             });
+
+            // ---------- Contribute to jackpot pools ----------
+            jackpotService.contributeToJackpots(amt, user._id, user.username).catch(err =>
+                console.error('[Bet] Jackpot contribution failed:', err.message)
+            );
 
             // Audit log
             try {
@@ -688,6 +688,13 @@ connectDB().then(async () => {
         gameState.roundId = 0;
     }
 
+    // Ensure jackpot pools exist
+    try {
+        await jackpotService.ensureJackpots();
+    } catch (err) {
+        console.error('[Startup] Jackpot init failed:', err.message);
+    }
+
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`🚀 BetNova core backend operating on port ${PORT}`);
         console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -701,6 +708,8 @@ connectDB().then(async () => {
         console.log(`🏆 Sports Betting: ${process.env.ODDS_API_KEY ? 'ENABLED (/sports)' : 'DISABLED (no ODDS_API_KEY)'}`);
         console.log(`💰 Wallet & Referral: ENABLED (/api/wallet)`);
         console.log(`👤 Profile API: ENABLED (/api/profile)`);
+        console.log(`🎰 Jackpots: ENABLED (daily/weekly/mega)`);
+        console.log(`🎁 Promotions: ENABLED (/api/promotions)`);
 
         runEngineLoop();
 
@@ -708,18 +717,30 @@ connectDB().then(async () => {
         // BACKGROUND JOBS
         // ============================================
 
-        // Initial odds sync — 30 seconds after startup
+        // --- Jackpot draws (every 5 minutes) ---
+        setInterval(() => {
+            jackpotService.runDueDraws(io).catch(err =>
+                console.error('[Cron] Jackpot draw failed:', err.message)
+            );
+        }, 5 * 60 * 1000);
+
+        // Check for due jackpot draws immediately on startup (in case server was down)
+        setTimeout(() => {
+            jackpotService.runDueDraws(io).catch(err =>
+                console.error('[Startup] Jackpot draw failed:', err.message)
+            );
+        }, 15000);
+
+        // --- Sports betting jobs (only if ODDS_API_KEY configured) ---
         if (process.env.ODDS_API_KEY) {
             setTimeout(() => {
                 fullRefresh().catch(err => console.error('[Startup] Odds refresh failed:', err.message));
             }, 30000);
 
-            // Refresh odds every 30 minutes
             setInterval(() => {
                 fullRefresh().catch(err => console.error('[Cron] Odds refresh failed:', err.message));
             }, 30 * 60 * 1000);
 
-            // Run settlement every 5 minutes
             setInterval(() => {
                 runSettlementCycle().catch(err => console.error('[Cron] Settler failed:', err.message));
             }, 5 * 60 * 1000);
