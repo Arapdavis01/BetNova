@@ -5,9 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BetNova — Premium Crash Gaming</title>
     <meta name="description" content="Play BetNova's provably fair crash game. Instant M-Pesa deposits. Cash out before the plane flies away.">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@600;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
@@ -24,8 +27,8 @@
                 <h1 class="text-2xl font-black tracking-tight">
                     <span class="text-white">Bet</span><span class="text-gradient-red">Nova</span>
                 </h1>
-                <span class="hidden md:inline-block ml-3 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30 rounded-full">
-                    ● Live
+                <span class="hidden md:inline-flex items-center gap-1.5 ml-3 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30 rounded-full">
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Live
                 </span>
             </div>
 
@@ -38,10 +41,10 @@
             <!-- User zone (when logged in) -->
             <div id="user-zone" class="hidden items-center gap-2 md:gap-3">
                 <button onclick="openModal('deposit-modal')" class="btn-deposit">
-                    <span>＋</span> Deposit
+                    <i class="fa-solid fa-plus"></i> Deposit
                 </button>
-                <button onclick="openModal('withdraw-modal')" class="btn-withdraw hidden md:flex">
-                    Withdraw
+                <button onclick="openModal('withdraw-modal')" class="btn-withdraw hidden md:inline-flex">
+                    <i class="fa-solid fa-arrow-up-from-bracket"></i> Withdraw
                 </button>
                 <div class="wallet-chip">
                     <span class="text-[10px] uppercase tracking-wider text-gray-400 block leading-none">Balance</span>
@@ -54,10 +57,27 @@
                             <p class="text-xs text-gray-400">Signed in as</p>
                             <p id="user-display-name" class="font-bold text-sm">User</p>
                         </div>
-                        <button onclick="openModal('deposit-modal')" class="user-menu-item">💳 Deposit</button>
-                        <button onclick="openModal('withdraw-modal')" class="user-menu-item">💸 Withdraw</button>
-                        <button onclick="openModal('history-modal')" class="user-menu-item">📜 History</button>
-                        <button onclick="handleLogout()" class="user-menu-item text-red-400">Log Out</button>
+                        <button onclick="openModal('deposit-modal')" class="user-menu-item">
+                            <i class="fa-solid fa-credit-card"></i> Deposit
+                        </button>
+                        <button onclick="openModal('withdraw-modal')" class="user-menu-item">
+                            <i class="fa-solid fa-money-bill-transfer"></i> Withdraw
+                        </button>
+                        <button onclick="openHistory()" class="user-menu-item">
+                            <i class="fa-solid fa-clock-rotate-left"></i> History
+                        </button>
+                        <button onclick="openModal('responsible-modal')" class="user-menu-item">
+                            <i class="fa-solid fa-shield-halved"></i> Responsible Gambling
+                        </button>
+                        <button onclick="openModal('kyc-modal')" class="user-menu-item">
+                            <i class="fa-solid fa-mobile-screen"></i> Verify Phone
+                        </button>
+                        <button onclick="openModal('support-modal')" class="user-menu-item">
+                            <i class="fa-solid fa-headset"></i> Contact Support
+                        </button>
+                        <button onclick="handleLogout()" class="user-menu-item text-red-400">
+                            <i class="fa-solid fa-right-from-bracket"></i> Log Out
+                        </button>
                     </div>
                 </div>
             </div>
@@ -74,7 +94,9 @@
             <div class="relative game-panel h-[420px] flex flex-col items-center justify-center overflow-hidden">
 
                 <div id="game-lock" class="absolute inset-0 bg-[#0a0e1a]/95 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
-                    <div class="lock-icon">🔒</div>
+                    <div class="lock-icon">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
                     <h3 class="text-xl font-bold mt-4">Sign In to Play</h3>
                     <p class="text-sm text-gray-400 max-w-xs mt-2">Create your account or sign in to join the live round.</p>
                     <button onclick="openModal('signup-modal')" class="btn-primary mt-5">Create Account</button>
@@ -92,8 +114,8 @@
                     <span id="active-count">0</span> players in this round
                 </div>
 
-                <div class="absolute bottom-4 right-4 flex items-center gap-1 text-[10px] uppercase tracking-wider text-gray-500">
-                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+                <div class="absolute bottom-4 right-4 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-gray-500">
+                    <i class="fa-solid fa-shield-halved"></i>
                     Provably Fair
                 </div>
             </div>
@@ -147,13 +169,15 @@
             </div>
         </div>
 
-        <!-- RIGHT: Live Feed + Stats -->
+        <!-- RIGHT: Feed, Leaderboard, Chat, Trust -->
         <aside class="flex flex-col gap-5">
 
             <!-- Recent Crashes -->
             <div class="game-panel p-4">
                 <div class="flex justify-between items-center mb-3">
-                    <h3 class="section-title">Recent Crashes</h3>
+                    <h3 class="section-title">
+                        <i class="fa-solid fa-chart-line"></i> Recent Crashes
+                    </h3>
                     <span class="text-[10px] text-gray-500 uppercase tracking-wider">Last 20</span>
                 </div>
                 <div id="crash-history" class="flex flex-wrap gap-1.5">
@@ -161,10 +185,29 @@
                 </div>
             </div>
 
-            <!-- Live Feed -->
-            <div class="game-panel p-4 flex-1 flex flex-col max-h-[400px]">
+            <!-- Leaderboard -->
+            <div class="game-panel p-4">
                 <div class="flex justify-between items-center mb-3">
-                    <h3 class="section-title">Live Activity</h3>
+                    <h3 class="section-title">
+                        <i class="fa-solid fa-trophy"></i> Top Winners
+                    </h3>
+                    <div class="flex gap-1">
+                        <button onclick="loadLeaderboard('daily')" class="tab-btn active" data-period="daily">24h</button>
+                        <button onclick="loadLeaderboard('weekly')" class="tab-btn" data-period="weekly">7d</button>
+                        <button onclick="loadLeaderboard('alltime')" class="tab-btn" data-period="alltime">All</button>
+                    </div>
+                </div>
+                <div id="leaderboard-list" class="space-y-1.5 text-xs">
+                    <p class="text-gray-500 text-center py-4">Loading...</p>
+                </div>
+            </div>
+
+            <!-- Live Activity Feed -->
+            <div class="game-panel p-4 flex flex-col" style="max-height: 340px;">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="section-title">
+                        <i class="fa-solid fa-bolt"></i> Live Activity
+                    </h3>
                     <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                 </div>
                 <div id="feed-container" class="flex-1 overflow-y-auto space-y-1.5 pr-1 text-xs">
@@ -174,21 +217,69 @@
                 </div>
             </div>
 
-            <!-- Trust badges -->
+            <!-- Live Chat -->
+            <div class="game-panel p-4 flex flex-col" style="height: 380px;">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="section-title">
+                        <i class="fa-solid fa-comments"></i> Live Chat
+                    </h3>
+                    <span class="text-[10px] text-green-400 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                        <span id="chat-online">0</span> online
+                    </span>
+                </div>
+                <div id="chat-messages" class="flex-1 overflow-y-auto space-y-2 pr-1 text-xs mb-2">
+                    <p class="text-gray-500 text-center py-4">Connecting...</p>
+                </div>
+                <div class="flex gap-1">
+                    <input id="chat-input" type="text" maxlength="200" placeholder="Say something..."
+                           class="input-field py-2 text-xs"
+                           onkeydown="if(event.key==='Enter') sendChat()">
+                    <button onclick="sendChat()" class="btn-primary px-3 py-2 text-xs" title="Send">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Provably Fair -->
             <div class="game-panel p-4">
-                <h3 class="section-title mb-3">Trusted & Secure</h3>
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="section-title">
+                        <i class="fa-solid fa-shield-halved"></i> Provably Fair
+                    </h3>
+                    <button onclick="openModal('fairness-modal')" class="text-[10px] text-red-400 hover:underline uppercase tracking-wider font-bold">
+                        Verify <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                        <p class="text-gray-500 mb-1">Round</p>
+                        <p id="pf-round" class="font-mono font-bold text-white">—</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 mb-1">Seed Hash</p>
+                        <p id="pf-hash" class="font-mono text-[10px] text-gray-400 truncate">—</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trust Badges -->
+            <div class="game-panel p-4">
+                <h3 class="section-title mb-3">
+                    <i class="fa-solid fa-lock"></i> Trusted & Secure
+                </h3>
                 <div class="grid grid-cols-2 gap-2 text-[10px] text-gray-400">
                     <div class="flex items-center gap-1.5">
-                        <span class="text-green-400">✓</span> BCLB Licensed
+                        <i class="fa-solid fa-circle-check text-green-400"></i> BCLB Licensed
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <span class="text-green-400">✓</span> M-Pesa Instant
+                        <i class="fa-solid fa-circle-check text-green-400"></i> M-Pesa Instant
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <span class="text-green-400">✓</span> Provably Fair
+                        <i class="fa-solid fa-circle-check text-green-400"></i> Provably Fair
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <span class="text-green-400">✓</span> 18+ Only
+                        <i class="fa-solid fa-circle-check text-green-400"></i> 18+ Only
                     </div>
                 </div>
             </div>
@@ -218,7 +309,9 @@
             <div>
                 <h4 class="text-white font-bold mb-2">Play Responsibly</h4>
                 <p>Gambling should be fun, not a way to make money. Only bet what you can afford to lose.</p>
-                <p class="mt-2 text-red-400 font-bold">18+</p>
+                <p class="mt-2 text-red-400 font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-ban"></i> 18+
+                </p>
             </div>
         </div>
         <div class="border-t border-white/5 py-4 text-center text-[10px] text-gray-600">
@@ -231,8 +324,10 @@
     <!-- Sign In -->
     <div id="signin-modal" class="modal-overlay hidden">
         <div class="modal-card">
-            <button onclick="closeModal('signin-modal')" class="modal-close">×</button>
-            <div class="modal-icon">🔓</div>
+            <button onclick="closeModal('signin-modal')" class="modal-close">&times;</button>
+            <div class="modal-icon">
+                <i class="fa-solid fa-right-to-bracket"></i>
+            </div>
             <h2 class="modal-title">Welcome Back</h2>
             <p class="modal-subtitle">Sign in to continue playing</p>
             <form onsubmit="handleAuth(event, 'signin')" class="space-y-3 mt-5">
@@ -241,7 +336,8 @@
                 <button type="submit" class="btn-primary w-full mt-2">Sign In</button>
             </form>
             <p class="text-center text-xs text-gray-500 mt-4">
-                No account? <button onclick="closeModal('signin-modal'); openModal('signup-modal')" class="text-red-400 hover:underline">Create one</button>
+                No account?
+                <button onclick="closeModal('signin-modal'); openModal('signup-modal')" class="text-red-400 hover:underline">Create one</button>
             </p>
         </div>
     </div>
@@ -249,8 +345,10 @@
     <!-- Sign Up -->
     <div id="signup-modal" class="modal-overlay hidden">
         <div class="modal-card">
-            <button onclick="closeModal('signup-modal')" class="modal-close">×</button>
-            <div class="modal-icon">✨</div>
+            <button onclick="closeModal('signup-modal')" class="modal-close">&times;</button>
+            <div class="modal-icon">
+                <i class="fa-solid fa-user-plus"></i>
+            </div>
             <h2 class="modal-title">Create Account</h2>
             <p class="modal-subtitle">Join thousands of players</p>
             <form onsubmit="handleAuth(event, 'signup')" class="space-y-3 mt-5">
@@ -263,7 +361,8 @@
                 <button type="submit" class="btn-primary w-full mt-2">Create Account</button>
             </form>
             <p class="text-center text-xs text-gray-500 mt-4">
-                Already have an account? <button onclick="closeModal('signup-modal'); openModal('signin-modal')" class="text-red-400 hover:underline">Sign in</button>
+                Already have an account?
+                <button onclick="closeModal('signup-modal'); openModal('signin-modal')" class="text-red-400 hover:underline">Sign in</button>
             </p>
         </div>
     </div>
@@ -271,8 +370,10 @@
     <!-- Deposit -->
     <div id="deposit-modal" class="modal-overlay hidden">
         <div class="modal-card">
-            <button onclick="closeModal('deposit-modal')" class="modal-close">×</button>
-            <div class="modal-icon">💳</div>
+            <button onclick="closeModal('deposit-modal')" class="modal-close">&times;</button>
+            <div class="modal-icon">
+                <i class="fa-solid fa-credit-card"></i>
+            </div>
             <h2 class="modal-title">Deposit Funds</h2>
             <p class="modal-subtitle">Instant M-Pesa STK Push</p>
             <div class="space-y-3 mt-5">
@@ -301,8 +402,10 @@
     <!-- Withdraw -->
     <div id="withdraw-modal" class="modal-overlay hidden">
         <div class="modal-card">
-            <button onclick="closeModal('withdraw-modal')" class="modal-close">×</button>
-            <div class="modal-icon">💸</div>
+            <button onclick="closeModal('withdraw-modal')" class="modal-close">&times;</button>
+            <div class="modal-icon">
+                <i class="fa-solid fa-money-bill-transfer"></i>
+            </div>
             <h2 class="modal-title">Withdraw Funds</h2>
             <p class="modal-subtitle">Sent to M-Pesa within minutes</p>
             <div class="space-y-3 mt-5">
@@ -324,13 +427,168 @@
 
     <!-- History -->
     <div id="history-modal" class="modal-overlay hidden">
-        <div class="modal-card max-w-lg">
-            <button onclick="closeModal('history-modal')" class="modal-close">×</button>
-            <div class="modal-icon">📜</div>
+        <div class="modal-card max-w-2xl">
+            <button onclick="closeModal('history-modal')" class="modal-close">&times;</button>
+            <div class="modal-icon">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
             <h2 class="modal-title">Bet History</h2>
             <p class="modal-subtitle">Your recent bets and outcomes</p>
-            <div id="history-list" class="mt-5 max-h-80 overflow-y-auto space-y-2">
+            <div id="history-list" class="mt-5 max-h-96 overflow-y-auto space-y-2">
                 <p class="text-sm text-gray-500 text-center py-8">No bets yet</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Provably Fair Verification -->
+    <div id="fairness-modal" class="modal-overlay hidden">
+        <div class="modal-card max-w-2xl">
+            <button onclick="closeModal('fairness-modal')" class="modal-close">&times;</button>
+            <div class="modal-icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h2 class="modal-title">Provably Fair Verification</h2>
+            <p class="modal-subtitle">Every round is cryptographically verifiable</p>
+
+            <div class="mt-5 p-3 bg-black/30 rounded-lg border border-white/10 text-xs text-gray-300 leading-relaxed">
+                <p class="mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-red-400"></i>
+                    <strong class="text-white">How it works</strong>
+                </p>
+                <p class="mb-2">Before each round, we generate a secret server seed and publish its SHA-256 hash. The crash point is derived from this seed using HMAC-SHA256. After the round crashes, we reveal the seed. You can verify that the hash matches and recompute the crash point yourself.</p>
+            </div>
+
+            <div class="mt-4 space-y-3">
+                <div>
+                    <label class="input-label">Round</label>
+                    <div id="verify-round" class="font-mono text-white text-sm">—</div>
+                </div>
+                <div>
+                    <label class="input-label">Committed Hash (SHA-256)</label>
+                    <div id="verify-hash" class="font-mono text-[10px] text-gray-400 break-all">—</div>
+                </div>
+                <div>
+                    <label class="input-label">Revealed Seed</label>
+                    <div id="verify-seed" class="font-mono text-[10px] text-gray-400 break-all">Waiting for reveal...</div>
+                </div>
+                <div>
+                    <label class="input-label">Computed Crash Point</label>
+                    <div id="verify-crash" class="font-mono text-green-400 text-sm font-bold">—</div>
+                </div>
+            </div>
+
+            <div id="verify-result" class="mt-4 text-xs text-gray-500">
+                Awaiting round completion...
+            </div>
+        </div>
+    </div>
+
+    <!-- Responsible Gambling -->
+    <div id="responsible-modal" class="modal-overlay hidden">
+        <div class="modal-card max-w-md">
+            <button onclick="closeModal('responsible-modal')" class="modal-close">&times;</button>
+            <div class="modal-icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h2 class="modal-title">Responsible Gambling</h2>
+            <p class="modal-subtitle">Set limits. Stay in control.</p>
+
+            <div class="space-y-4 mt-5">
+                <div>
+                    <label class="input-label">Daily Deposit Limit (KES)</label>
+                    <input id="limit-deposit" type="number" min="0" placeholder="No limit" class="input-field">
+                </div>
+                <div>
+                    <label class="input-label">Daily Wager Limit (KES)</label>
+                    <input id="limit-wager" type="number" min="0" placeholder="No limit" class="input-field">
+                </div>
+                <div>
+                    <label class="input-label">Session Time Limit (minutes)</label>
+                    <input id="limit-session" type="number" min="0" placeholder="No limit" class="input-field">
+                </div>
+                <button onclick="saveLimits()" class="btn-primary w-full">
+                    <i class="fa-solid fa-floppy-disk"></i> Save Limits
+                </button>
+
+                <div class="border-t border-white/10 pt-4 mt-4">
+                    <h3 class="text-sm font-bold text-red-400 mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-exclamation"></i> Self-Exclusion
+                    </h3>
+                    <p class="text-xs text-gray-400 mb-3">Temporarily block yourself from betting.</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="selfExclude(24)" class="chip">24 hours</button>
+                        <button onclick="selfExclude(168)" class="chip">7 days</button>
+                        <button onclick="selfExclude(720)" class="chip">30 days</button>
+                        <button onclick="selfExclude(8760)" class="chip">1 year</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KYC / Phone Verification -->
+    <div id="kyc-modal" class="modal-overlay hidden">
+        <div class="modal-card max-w-md">
+            <button onclick="closeModal('kyc-modal')" class="modal-close">&times;</button>
+            <div class="modal-icon">
+                <i class="fa-solid fa-mobile-screen"></i>
+            </div>
+            <h2 class="modal-title">Verify Phone</h2>
+            <p class="modal-subtitle">Required for withdrawals</p>
+
+            <div class="space-y-3 mt-5" id="kyc-step-1">
+                <div>
+                    <label class="input-label">M-Pesa Phone Number</label>
+                    <input id="kyc-phone" type="tel" placeholder="0712345678" class="input-field">
+                </div>
+                <button onclick="sendOTP()" class="btn-primary w-full">Send OTP</button>
+            </div>
+
+            <div class="space-y-3 mt-5 hidden" id="kyc-step-2">
+                <div>
+                    <label class="input-label">Enter 6-digit OTP</label>
+                    <input id="kyc-code" type="text" maxlength="6" placeholder="123456"
+                           class="input-field text-center font-mono text-xl tracking-widest">
+                </div>
+                <button onclick="verifyOTP()" class="btn-primary w-full">Verify</button>
+                <button onclick="sendOTP()" class="btn-ghost w-full text-xs">Resend OTP</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Support -->
+    <div id="support-modal" class="modal-overlay hidden">
+        <div class="modal-card max-w-md">
+            <button onclick="closeModal('support-modal')" class="modal-close">&times;</button>
+            <div class="modal-icon">
+                <i class="fa-solid fa-headset"></i>
+            </div>
+            <h2 class="modal-title">Contact Support</h2>
+            <p class="modal-subtitle">We respond within 24 hours</p>
+
+            <div class="space-y-3 mt-5">
+                <div>
+                    <label class="input-label">Category</label>
+                    <select id="support-category" class="input-field">
+                        <option value="deposit">Deposit issue</option>
+                        <option value="withdrawal">Withdrawal issue</option>
+                        <option value="game">Game issue</option>
+                        <option value="account">Account issue</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="input-label">Subject</label>
+                    <input id="support-subject" type="text" maxlength="100" class="input-field">
+                </div>
+                <div>
+                    <label class="input-label">Message</label>
+                    <textarea id="support-message" rows="4" maxlength="2000"
+                              class="input-field" style="resize:none;"></textarea>
+                </div>
+                <button onclick="submitTicket()" class="btn-primary w-full">
+                    <i class="fa-solid fa-paper-plane"></i> Submit Ticket
+                </button>
             </div>
         </div>
     </div>
