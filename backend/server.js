@@ -5,6 +5,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+// ---------- Config & Routes ----------
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth');
 const paymentRoutes = require('./routes/payments');
@@ -16,39 +17,47 @@ const chatRoutes = require('./routes/chat');
 const supportRoutes = require('./routes/support');
 const adminRoutes = require('./routes/admin');
 
+// ---------- Models ----------
 const User = require('./models/User');
 const Bet = require('./models/Bet');
 const Round = require('./models/Round');
 const ChatMessage = require('./models/ChatMessage');
 const AuditLog = require('./models/AuditLog');
 
+// ---------- Services ----------
 const provablyFair = require('./services/provablyFair');
 
 const app = express();
 
-// ---------- CORS Configuration ----------
+// ============================================
+// CORS CONFIGURATION
+// ============================================
 const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:5000",
-    "http://127.0.0.1:5500",
+    "http://127.0.0.1:5500",       // VS Code Live Server
     "http://127.0.0.1:3000",
-    process.env.CLIENT_URL
+    process.env.CLIENT_URL          // Production frontend URL
 ].filter(Boolean);
 
 app.use(cors({
     origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, Postman)
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
             return callback(null, true);
         }
+        // Permissive for deployment flexibility — tighten in production if needed
         return callback(null, true);
     },
     credentials: true
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
-// ---------- API Routes ----------
+// ============================================
+// API ROUTES
+// ============================================
 app.use('/api', authRoutes);
 app.use('/api/payhero', paymentRoutes);
 app.use('/api/bets', betRoutes);
@@ -59,17 +68,22 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/admin', adminRoutes);
 
-// ---------- Serve Frontend (Production) ----------
+// ============================================
+// SERVE FRONTEND (Production)
+// ============================================
 if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../frontend');
     app.use(express.static(frontendPath));
 
+    // SPA fallback — send index.html for any non-API route
     app.get(/^\/(?!api|socket\.io).*/, (req, res) => {
         res.sendFile(path.join(frontendPath, 'index.html'));
     });
 }
 
-// ---------- HTTP + Socket.IO Server ----------
+// ============================================
+// HTTP + SOCKET.IO SERVER
+// ============================================
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
@@ -77,14 +91,17 @@ const io = new Server(server, {
         methods: ["GET", "POST"],
         credentials: true
     },
+    // Required for proper WebSocket handling behind Render's proxy
     transports: ['websocket', 'polling'],
     pingTimeout: 60000,
     pingInterval: 25000
 });
 
-// ---------- Game State ----------
+// ============================================
+// GAME STATE
+// ============================================
 let gameState = {
-    status: "WAITING",
+    status: "WAITING",       // WAITING, FLYING, CRASHED
     multiplier: 1.00,
     crashPoint: 1.00,
     timer: 5,
@@ -92,27 +109,32 @@ let gameState = {
     serverSeedHash: null
 };
 
-// Runtime bet registry
+// Runtime bet registry: socketId -> { userId, username, amount, cashedOut, cashoutMultiplier }
 const activeBets = new Map();
 
 // Current secret seed (revealed after crash)
 let currentServerSeed = null;
 
-// In-memory crash history for fast broadcast
+// In-memory crash history for fast broadcast (last 20)
 const crashHistory = [];
 
-// Chat online count
+// Chat online tracking
 const onlineUsers = new Set();
 
 const CURRENCY = 'KES';
 
+// ============================================
+// BROADCAST HELPERS
+// ============================================
 function broadcastState() {
     io.emit('betnova_tick', gameState);
     io.emit('active_bets_count', activeBets.size);
     io.emit('chat_online', onlineUsers.size);
 }
 
-// ---------- Engine Loop ----------
+// ============================================
+// ENGINE LOOP
+// ============================================
 async function runEngineLoop() {
     // Begin a new round
     gameState.roundId += 1;
@@ -154,7 +176,7 @@ async function runEngineLoop() {
 function launchMultiplier() {
     gameState.status = "FLYING";
 
-    // Deterministic crash point from the committed seed
+    // Deterministic crash point derived from the committed seed
     gameState.crashPoint = provablyFair.computeCrashPoint(
         currentServerSeed,
         gameState.roundId
@@ -245,14 +267,17 @@ async function explodePlane() {
     }, 4000);
 }
 
-// ---------- Socket Handling ----------
+// ============================================
+// SOCKET HANDLING
+// ============================================
 io.on('connection', (socket) => {
-    console.log(`🔌 Client connected: ${socket.id}`);
+    console.log(`Client connected: ${socket.id}`);
 
     // Send initial snapshot
     socket.emit('betnova_tick', gameState);
     socket.emit('crash_history', crashHistory);
     socket.emit('active_bets_count', activeBets.size);
+    socket.emit('chat_online', onlineUsers.size);
 
     if (gameState.serverSeedHash) {
         socket.emit('round_commit', {
@@ -324,6 +349,11 @@ io.on('connection', (socket) => {
 
             const user = await User.findById(userId);
             if (!user) return socket.emit('bet_error', 'User not found.');
+
+            // ---------- Account Status Check ----------
+            if (user.status && user.status !== 'active') {
+                return socket.emit('bet_error', 'Your account is not active.');
+            }
 
             // ---------- Self-Exclusion Check ----------
             if (user.selfExcluded && user.selfExcludedUntil > new Date()) {
@@ -461,13 +491,13 @@ io.on('connection', (socket) => {
 
     // ---------- Disconnect ----------
     socket.on('disconnect', async () => {
-        console.log(`🔌 Client disconnected: ${socket.id}`);
+        console.log(`Client disconnected: ${socket.id}`);
 
         // Remove from chat presence
         onlineUsers.delete(socket.id);
         io.emit('chat_online', onlineUsers.size);
 
-        // Refund pending bet if round hasn't crashed
+        // Refund pending bet if round hasn't crashed yet
         const bet = activeBets.get(socket.id);
         if (bet && !bet.cashedOut && gameState.status !== 'CRASHED') {
             try {
@@ -485,7 +515,9 @@ io.on('connection', (socket) => {
     });
 });
 
-// ---------- Bootstrap ----------
+// ============================================
+// BOOTSTRAP
+// ============================================
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {
@@ -493,15 +525,19 @@ connectDB().then(() => {
         console.log(`🚀 BetNova core backend operating on port ${PORT}`);
         console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`💳 PayHero integration: ${process.env.PAYHERO_USERNAME ? 'ENABLED' : 'DISABLED'}`);
+        console.log(`📧 Email OTP: ${process.env.EMAIL_USER && process.env.EMAIL_PASSWORD ? 'ENABLED' : 'DISABLED'}`);
         console.log(`🔐 Provably Fair: ENABLED (SHA-256 commit-reveal)`);
         console.log(`💬 Chat: ENABLED`);
         console.log(`🛡️  Responsible Gambling: ENABLED`);
         console.log(`🎛️  Admin API: ${process.env.ADMIN_TOKEN ? 'ENABLED' : 'DISABLED'}`);
+
         runEngineLoop();
     });
 });
 
-// ---------- Graceful Shutdown ----------
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
 process.on('SIGTERM', () => {
     console.log('SIGTERM received, shutting down gracefully...');
     server.close(() => {
