@@ -105,7 +105,7 @@ let gameState = {
     multiplier: 1.00,
     crashPoint: 1.00,
     timer: 5,
-    roundId: 0,
+    roundId: 0,              // Set from DB on startup
     serverSeedHash: null
 };
 
@@ -153,7 +153,26 @@ async function runEngineLoop() {
             clientSeed: 'betnova-public'
         });
     } catch (err) {
-        console.error('Round creation error:', err.message);
+        if (err.code === 11000) {
+            // Duplicate roundId — sync with DB and retry once
+            console.warn(`Round #${gameState.roundId} already exists — syncing from DB`);
+            try {
+                const lastRound = await Round.findOne().sort({ roundId: -1 }).select('roundId').lean();
+                if (lastRound && lastRound.roundId) {
+                    gameState.roundId = lastRound.roundId + 1;
+                    console.log(`Adjusted roundId to #${gameState.roundId}`);
+                    await Round.create({
+                        roundId: gameState.roundId,
+                        serverSeedHash: gameState.serverSeedHash,
+                        clientSeed: 'betnova-public'
+                    });
+                }
+            } catch (retryErr) {
+                console.error('Round creation retry failed:', retryErr.message);
+            }
+        } else {
+            console.error('Round creation error:', err.message);
+        }
     }
 
     // Broadcast commit hash so players can verify later
@@ -520,7 +539,27 @@ io.on('connection', (socket) => {
 // ============================================
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
+connectDB().then(async () => {
+    // ---------- Resume roundId from DB ----------
+    try {
+        const lastRound = await Round.findOne()
+            .sort({ roundId: -1 })
+            .select('roundId')
+            .lean();
+
+        if (lastRound && typeof lastRound.roundId === 'number') {
+            gameState.roundId = lastRound.roundId;
+            console.log(`🔄 Resuming from round #${gameState.roundId}`);
+        } else {
+            gameState.roundId = 0;
+            console.log(`🆕 Starting fresh from round #1`);
+        }
+    } catch (err) {
+        console.error('Failed to load last roundId:', err.message);
+        gameState.roundId = 0;
+        console.log(`⚠️  Defaulting to round #1 (duplicate key error may occur)`);
+    }
+
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`🚀 BetNova core backend operating on port ${PORT}`);
         console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
