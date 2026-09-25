@@ -1204,3 +1204,10 @@ html, body {
     .avi-balance-chip { font-size: 11px; padding: 4px 8px; }
     .avi-balance-chip i { display: none; }
 }
+.avi-modal-btn[href] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-decoration: none;
+}
