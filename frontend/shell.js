@@ -1,9 +1,10 @@
 // ============================================
 // BetNova — Shared Shell Logic
-// Loaded on every page that uses the shell layout
-// Includes: session, wallet, referral, KYC, live wins, jackpot ticker
+// Session · Wallet · Bet Slip · Referral · KYC · Live Wins
+// Shared across: home, aviator, sports, cashier, promotions
 // ============================================
 
+// ---------- API Base Detection ----------
 const API_BASE = (() => {
     const host = window.location.hostname;
     const port = window.location.port;
@@ -13,22 +14,47 @@ const API_BASE = (() => {
     return '';
 })();
 
+// ---------- Socket ----------
 const socket = io(API_BASE || undefined, {
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 10,
-    reconnectionDelay: 1000
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000
 });
 
 // ============================================
-// STATE
+// GLOBAL STATE
 // ============================================
 let currentUser = null;
 let currentCategory = 'featured';
 let userSnapshot = null;
+let pendingAuthAction = null;   // callback to run after successful signin
+let pendingSelection = null;     // { matchExternalId, pick, ... } for anonymous bet slip
+
+// ---------- Storage Keys ----------
+const LS = {
+    USER: 'betnova_user',
+    USERID: 'betnova_userid',
+    TOKEN: 'betnova_token',
+    BALANCE: 'betnova_balance',
+    REF: 'betnova_ref',
+    SOUND: 'betnova_sound',
+    BETSLIP: 'betnova_betslip',
+    PENDING_SELECTION: 'betnova_pending_selection'
+};
 
 // ============================================
-// UTILS
+// EVENT BUS (cross-page communication)
+// ============================================
+const bus = new EventTarget();
+
+function emitEvent(name, detail) {
+    bus.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
+// ============================================
+// UTILITIES
 // ============================================
 function formatKES(n) {
     return parseFloat(n || 0).toLocaleString('en-KE', {
@@ -39,7 +65,7 @@ function formatKES(n) {
 
 function escapeHtml(text) {
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = text || '';
     return div.innerHTML;
 }
 
@@ -54,32 +80,30 @@ function showToast(msg, type = 'info', duration = 3000) {
     toastTimer = setTimeout(() => t.classList.add('hidden'), duration);
 }
 
-// ============================================
-// REFERRAL CODE CAPTURE (from URL ?ref=XXXX)
-// ============================================
-function captureReferralCode() {
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get('ref') || params.get('referral');
-    if (ref && typeof ref === 'string' && ref.length > 0 && ref.length <= 20) {
-        localStorage.setItem('betnova_ref', ref.toUpperCase());
-        console.log('[Referral] Captured code:', ref.toUpperCase());
+function pickAvatarColor(seed) {
+    const colors = ['#ef4444', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+    let hash = 0;
+    for (let i = 0; i < (seed || '').length; i++) {
+        hash = seed.charCodeAt(i) + ((hash << 5) - hash);
     }
+    return colors[Math.abs(hash) % colors.length];
 }
 
 // ============================================
-// MODALS
+// MODAL HELPERS
 // ============================================
 function openModal(id) {
     const el = document.getElementById(id);
     if (el) el.classList.remove('hidden');
 }
+
 function closeModal(id) {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
 }
 
 document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('shell-modal')) {
+    if (e.target.classList && e.target.classList.contains('shell-modal')) {
         e.target.classList.add('hidden');
     }
 });
@@ -87,14 +111,23 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         document.querySelectorAll('.shell-modal:not(.hidden)').forEach(m => m.classList.add('hidden'));
-        const menu = document.getElementById('shell-user-menu');
-        if (menu) menu.classList.add('hidden');
-        const mob = document.getElementById('mobile-menu');
-        if (mob) mob.classList.remove('open');
-        const ov = document.getElementById('mobile-overlay');
-        if (ov) ov.classList.add('hidden');
+        document.getElementById('shell-user-menu')?.classList.add('hidden');
+        document.getElementById('mobile-menu')?.classList.remove('open');
+        document.getElementById('mobile-overlay')?.classList.add('hidden');
     }
 });
+
+// ============================================
+// REFERRAL CAPTURE
+// ============================================
+function captureReferralCode() {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref') || params.get('referral');
+    if (ref && typeof ref === 'string' && ref.length > 0 && ref.length <= 20) {
+        localStorage.setItem(LS.REF, ref.toUpperCase());
+        console.log('[Referral] Captured code:', ref.toUpperCase());
+    }
+}
 
 // ============================================
 // MOBILE MENU
@@ -129,13 +162,14 @@ document.addEventListener('click', (e) => {
 // SESSION
 // ============================================
 function checkSession() {
-    const user = localStorage.getItem('betnova_user');
-    const userId = localStorage.getItem('betnova_userid');
-    const token = localStorage.getItem('betnova_token');
-    const balance = localStorage.getItem('betnova_balance');
+    const user = localStorage.getItem(LS.USER);
+    const userId = localStorage.getItem(LS.USERID);
+    const token = localStorage.getItem(LS.TOKEN);
+    const balance = localStorage.getItem(LS.BALANCE);
 
     if (token && user && userId) {
         currentUser = { userId, username: user };
+
         document.getElementById('shell-auth-zone')?.classList.add('hidden');
         const userZone = document.getElementById('shell-user-zone');
         userZone?.classList.remove('hidden');
@@ -160,6 +194,9 @@ function checkSession() {
         userZone?.classList.add('hidden');
         userZone?.classList.remove('flex');
     }
+
+    // Update shared UI (bet slip badge on every page)
+    emitEvent('session:changed', { user: currentUser });
 }
 
 async function refreshBalance() {
@@ -169,11 +206,9 @@ async function refreshBalance() {
         if (!res.ok) return;
         const data = await res.json();
         userSnapshot = data;
-        localStorage.setItem('betnova_balance', data.balance);
+        localStorage.setItem(LS.BALANCE, data.balance);
         const balEl = document.getElementById('shell-balance');
         if (balEl) balEl.innerText = formatKES(data.balance);
-
-        // Update UI elements that depend on session state
         updateSessionUI();
     } catch (_) {}
 }
@@ -181,31 +216,27 @@ async function refreshBalance() {
 function updateSessionUI() {
     if (!userSnapshot) return;
 
-    // Update avatar/name if they exist
     const avatar = document.getElementById('shell-avatar');
     if (avatar && userSnapshot.username) {
         avatar.innerText = userSnapshot.username.charAt(0).toUpperCase();
     }
 
-    // Profile modal fields (if on a page that has them)
-    const profileName = document.getElementById('profile-name');
-    if (profileName) profileName.innerText = userSnapshot.username || '—';
+    const fields = {
+        'profile-name': userSnapshot.username || '—',
+        'profile-balance': `KES ${formatKES(userSnapshot.balance)}`,
+        'profile-bonus': `KES ${formatKES(userSnapshot.bonusBalance || 0)}`,
+        'user-referral-code': userSnapshot.referralCode || '—'
+    };
 
-    const profileBalance = document.getElementById('profile-balance');
-    if (profileBalance) profileBalance.innerText = `KES ${formatKES(userSnapshot.balance)}`;
-
-    const profileBonus = document.getElementById('profile-bonus');
-    if (profileBonus) profileBonus.innerText = `KES ${formatKES(userSnapshot.bonusBalance || 0)}`;
+    Object.entries(fields).forEach(([id, text]) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = text;
+    });
 
     const profileKyc = document.getElementById('profile-kyc');
     if (profileKyc) {
         const levels = ['Unverified', 'Email Verified', 'Email + Phone', 'Full KYC'];
         profileKyc.innerText = levels[userSnapshot.kycLevel || 0];
-    }
-
-    const referralCodeEl = document.getElementById('user-referral-code');
-    if (referralCodeEl && userSnapshot.referralCode) {
-        referralCodeEl.innerText = userSnapshot.referralCode;
     }
 }
 
@@ -217,16 +248,19 @@ async function handleAuth(event, type) {
     const username = document.getElementById(`${type}-user`).value.trim();
     const password = document.getElementById(`${type}-pass`).value;
 
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn ? submitBtn.innerText : null;
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = type === 'signin' ? 'Signing in...' : 'Creating account...';
+    }
+
     try {
-        // Build request body — include referralCode for signup
         const body = { username, password };
 
         if (type === 'signup') {
-            const refCode = localStorage.getItem('betnova_ref');
-            if (refCode) {
-                body.referralCode = refCode;
-                console.log('[Signup] Using referral code:', refCode);
-            }
+            const refCode = localStorage.getItem(LS.REF);
+            if (refCode) body.referralCode = refCode;
         }
 
         const res = await fetch(`${API_BASE}/api/${type}`, {
@@ -242,20 +276,27 @@ async function handleAuth(event, type) {
         }
 
         if (type === 'signin') {
-            localStorage.setItem('betnova_user', data.username);
-            localStorage.setItem('betnova_userid', data.userId);
-            localStorage.setItem('betnova_token', data.token);
-            localStorage.setItem('betnova_balance', data.balance);
+            localStorage.setItem(LS.USER, data.username);
+            localStorage.setItem(LS.USERID, data.userId);
+            localStorage.setItem(LS.TOKEN, data.token);
+            localStorage.setItem(LS.BALANCE, data.balance);
+
             closeModal('signin-modal');
             checkSession();
-
-            // Welcome message varies based on signup bonus history
             showToast(`Welcome back, ${data.username}!`, 'success');
-        } else {
-            // Signup successful — clear referral code so it isn't reused
-            localStorage.removeItem('betnova_ref');
 
-            // Show signup bonus message if applicable
+            // Restore pending selection (anonymous odd click → signin)
+            restorePendingSelection();
+
+            // Run pending auth action (e.g., user clicked "Place Bet" without login)
+            if (typeof pendingAuthAction === 'function') {
+                const action = pendingAuthAction;
+                pendingAuthAction = null;
+                try { action(); } catch (_) {}
+            }
+        } else {
+            localStorage.removeItem(LS.REF);
+
             if (data.signupBonus && data.signupBonus > 0) {
                 showToast(
                     `Welcome! You received a KES ${formatKES(data.signupBonus)} signup bonus. Sign in to play!`,
@@ -271,12 +312,16 @@ async function handleAuth(event, type) {
         }
     } catch (err) {
         console.error('Auth error:', err);
-        showToast('Network error', 'error');
+        showToast('Network error — try again', 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = originalText || (type === 'signin' ? 'Sign In' : 'Create Account');
+        }
     }
 }
 
 function handleLogout() {
-    // Optional: log the logout via API
     if (currentUser) {
         fetch(`${API_BASE}/api/logout`, {
             method: 'POST',
@@ -284,19 +329,181 @@ function handleLogout() {
             body: JSON.stringify({ userId: currentUser.userId })
         }).catch(() => {});
     }
-    localStorage.clear();
+    localStorage.removeItem(LS.USER);
+    localStorage.removeItem(LS.USERID);
+    localStorage.removeItem(LS.TOKEN);
+    localStorage.removeItem(LS.BALANCE);
     location.reload();
 }
 
 // ============================================
-// PAYHERO — DEPOSIT / WITHDRAW
+// AUTH PROMPT — opens Sign In with a custom action
+// ============================================
+function requireAuth(action = null, message = 'Sign in to continue') {
+    if (currentUser) {
+        if (typeof action === 'function') action();
+        return true;
+    }
+
+    pendingAuthAction = action;
+    showSignInPrompt(message);
+    return false;
+}
+
+function showSignInPrompt(message) {
+    const signinTitle = document.querySelector('#signin-modal h3');
+    if (signinTitle) signinTitle.innerText = message || 'Sign In';
+
+    openModal('signin-modal');
+
+    // Focus username input
+    setTimeout(() => {
+        document.getElementById('signin-user')?.focus();
+    }, 100);
+}
+
+// ============================================
+// SHARED BET SLIP (localStorage-backed)
+// ============================================
+function getBetSlip() {
+    try {
+        return JSON.parse(localStorage.getItem(LS.BETSLIP) || '[]');
+    } catch (_) {
+        return [];
+    }
+}
+
+function saveBetSlip(slip) {
+    localStorage.setItem(LS.BETSLIP, JSON.stringify(slip));
+    emitEvent('betslip:changed', { slip });
+    updateBetslipBadge();
+}
+
+function addToBetSlip(selection) {
+    const slip = getBetSlip();
+    const existingIdx = slip.findIndex(s => s.matchExternalId === selection.matchExternalId);
+
+    if (existingIdx >= 0) {
+        if (slip[existingIdx].pick === selection.pick) {
+            slip.splice(existingIdx, 1);    // toggle off
+        } else {
+            slip[existingIdx] = selection;   // replace pick
+        }
+    } else {
+        if (slip.length >= 20) {
+            showToast('Maximum 20 selections per bet', 'error');
+            return false;
+        }
+        slip.push(selection);
+    }
+
+    saveBetSlip(slip);
+    return true;
+}
+
+function removeFromBetSlip(matchExternalId) {
+    const slip = getBetSlip().filter(s => s.matchExternalId !== matchExternalId);
+    saveBetSlip(slip);
+}
+
+function clearSharedBetSlip() {
+    saveBetSlip([]);
+}
+
+function getBetSlipCount() {
+    return getBetSlip().length;
+}
+
+function updateBetslipBadge() {
+    const count = getBetSlipCount();
+    document.querySelectorAll('.spo-betslip-count, .shell-betslip-count, #betslip-count').forEach(el => {
+        el.innerText = count;
+        el.dataset.count = count;
+    });
+    document.querySelectorAll('#betslip-count-badge').forEach(el => {
+        el.innerText = count;
+    });
+}
+
+// ============================================
+// PENDING SELECTION (anonymous bet slip)
+// ============================================
+function storePendingSelection(selection) {
+    localStorage.setItem(LS.PENDING_SELECTION, JSON.stringify(selection));
+}
+
+function restorePendingSelection() {
+    const raw = localStorage.getItem(LS.PENDING_SELECTION);
+    if (!raw) return;
+
+    try {
+        const pending = JSON.parse(raw);
+        localStorage.removeItem(LS.PENDING_SELECTION);
+
+        if (addToBetSlip(pending)) {
+            showToast(
+                `Saved to bet slip: ${pending.homeTeam} vs ${pending.awayTeam}`,
+                'success',
+                3500
+            );
+        }
+    } catch (err) {
+        console.error('Failed to restore pending selection:', err);
+    }
+}
+
+// ============================================
+// HANDLE ODD CLICK FROM ANY PAGE
+// Called by match cards on home + soccer page
+// ============================================
+function handleOddClick(selection) {
+    if (!currentUser) {
+        // Store pending selection
+        storePendingSelection(selection);
+
+        // Prompt sign-in
+        requireAuth(
+            () => {
+                // This runs after successful signin — add selection
+                // (restorePendingSelection already does it, but call again for safety)
+                addToBetSlip(selection);
+            },
+            'Sign in to save your bet'
+        );
+        return;
+    }
+
+    // Logged in — add to slip
+    if (addToBetSlip(selection)) {
+        showToast(
+            `${selection.homeTeam} vs ${selection.awayTeam} added`,
+            'success',
+            1800
+        );
+    }
+}
+
+// ============================================
+// PAYHERO — DEPOSIT
 // ============================================
 async function handleDeposit() {
     if (!currentUser) return showToast('Sign in first', 'error');
-    const amount = parseFloat(document.getElementById('deposit-amount').value);
-    const phone = document.getElementById('deposit-phone').value.trim();
+
+    const amountEl = document.getElementById('deposit-amount');
+    const phoneEl = document.getElementById('deposit-phone');
+    if (!amountEl || !phoneEl) return;
+
+    const amount = parseFloat(amountEl.value);
+    const phone = phoneEl.value.trim();
     if (!amount || amount < 10) return showToast('Minimum KES 10', 'error');
     if (!phone) return showToast('Enter M-Pesa number', 'error');
+
+    const btn = event?.target;
+    const originalText = btn?.innerHTML;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
+    }
 
     try {
         const res = await fetch(`${API_BASE}/api/payhero/deposit`, {
@@ -308,17 +515,38 @@ async function handleDeposit() {
         if (!res.ok) return showToast(data.error || 'Deposit failed', 'error');
         showToast('Check your phone for the M-Pesa PIN prompt', 'success', 5000);
         closeModal('deposit-modal');
+        setTimeout(refreshBalance, 8000);
     } catch (e) {
         showToast('Network error', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText || '<i class="fa-solid fa-bolt"></i> Send M-Pesa Request';
+        }
     }
 }
 
+// ============================================
+// PAYHERO — WITHDRAW
+// ============================================
 async function handleWithdraw() {
     if (!currentUser) return showToast('Sign in first', 'error');
-    const amount = parseFloat(document.getElementById('withdraw-amount').value);
-    const phone = document.getElementById('withdraw-phone').value.trim();
+
+    const amountEl = document.getElementById('withdraw-amount');
+    const phoneEl = document.getElementById('withdraw-phone');
+    if (!amountEl || !phoneEl) return;
+
+    const amount = parseFloat(amountEl.value);
+    const phone = phoneEl.value.trim();
     if (!amount || amount < 50) return showToast('Minimum KES 50', 'error');
     if (!phone) return showToast('Enter M-Pesa number', 'error');
+
+    const btn = event?.target;
+    const originalText = btn?.innerHTML;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+    }
 
     try {
         const res = await fetch(`${API_BASE}/api/payhero/withdraw`, {
@@ -329,48 +557,49 @@ async function handleWithdraw() {
         const data = await res.json();
 
         if (!res.ok) {
-            // Special handling for KYC gate
             if (data.code === 'KYC_REQUIRED') {
                 closeModal('withdraw-modal');
                 openModal('kyc-modal');
                 return showToast('Verify your email to withdraw', 'error', 4000);
             }
-
-            // Special handling for wagering gate
             if (data.code === 'WAGERING_REQUIRED') {
                 return showToast(data.error, 'error', 5000);
             }
-
             return showToast(data.error || 'Withdrawal failed', 'error');
         }
 
         showToast('Withdrawal sent successfully', 'success', 5000);
         closeModal('withdraw-modal');
-
-        // Refresh balance after a short delay to reflect the deduction
         setTimeout(refreshBalance, 2000);
     } catch (e) {
         showToast('Network error', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText || '<i class="fa-solid fa-money-bill-transfer"></i> Withdraw to M-Pesa';
+        }
     }
 }
 
 // ============================================
-// KYC (EMAIL OTP)
+// KYC — EMAIL OTP
 // ============================================
 async function sendOTP() {
     if (!currentUser) return;
-    const email = document.getElementById('kyc-email').value.trim();
-    if (!email) return showToast('Enter your email', 'error');
+    const emailEl = document.getElementById('kyc-email');
+    if (!emailEl) return;
 
-    // Basic client-side validation
+    const email = emailEl.value.trim();
+    if (!email) return showToast('Enter your email', 'error');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
         return showToast('Enter a valid email address', 'error');
     }
 
     const btn = event?.target;
+    const originalText = btn?.innerHTML;
     if (btn) {
         btn.disabled = true;
-        btn.innerText = 'Sending...';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
     }
 
     try {
@@ -381,23 +610,24 @@ async function sendOTP() {
         });
         const data = await res.json();
         if (!res.ok) return showToast(data.error || 'Failed', 'error');
+
         showToast('Code sent. Check your inbox.', 'success');
-        document.getElementById('kyc-step-1').classList.add('hidden');
-        document.getElementById('kyc-step-2').classList.remove('hidden');
+        document.getElementById('kyc-step-1')?.classList.add('hidden');
+        document.getElementById('kyc-step-2')?.classList.remove('hidden');
     } catch (e) {
         showToast('Network error', 'error');
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerText = 'Send Code';
+            btn.innerHTML = originalText || '<i class="fa-solid fa-paper-plane"></i> Send Code';
         }
     }
 }
 
 async function verifyOTP() {
     if (!currentUser) return;
-    const email = document.getElementById('kyc-email').value.trim();
-    const code = document.getElementById('kyc-code').value.trim();
+    const email = document.getElementById('kyc-email')?.value.trim();
+    const code = document.getElementById('kyc-code')?.value.trim();
     if (!code || code.length !== 6) return showToast('Enter 6-digit code', 'error');
 
     const btn = event?.target;
@@ -414,11 +644,11 @@ async function verifyOTP() {
         });
         const data = await res.json();
         if (!res.ok) return showToast(data.error || 'Invalid code', 'error');
+
         showToast('Email verified!', 'success');
         closeModal('kyc-modal');
         refreshBalance();
 
-        // Reset KYC modal steps for next time
         setTimeout(() => {
             document.getElementById('kyc-step-1')?.classList.remove('hidden');
             document.getElementById('kyc-step-2')?.classList.add('hidden');
@@ -466,11 +696,9 @@ async function saveLimits() {
 // SOCKET — BALANCE UPDATE
 // ============================================
 socket.on('balance_update', (balance) => {
-    localStorage.setItem('betnova_balance', balance);
+    localStorage.setItem(LS.BALANCE, balance);
     const el = document.getElementById('shell-balance');
     if (el) el.innerText = formatKES(balance);
-
-    // Also update userSnapshot if it exists
     if (userSnapshot) userSnapshot.balance = balance;
 });
 
@@ -483,7 +711,6 @@ const MAX_LIVE_WINS = 8;
 socket.on('feed', ({ msg, type }) => {
     if (type !== 'success') return;
 
-    // Parse "username cashed out at X.XXx for KES YYY"
     const match = msg.match(/^(.+?) cashed out at ([\d.]+)x for KES ([\d,.]+)/);
     if (!match) return;
 
@@ -491,7 +718,6 @@ socket.on('feed', ({ msg, type }) => {
     const multi = parseFloat(match[2]);
     const amount = parseFloat(match[3].replace(/,/g, ''));
 
-    // Mask username for privacy
     const maskedName = username.length > 4
         ? username.slice(0, 4) + '***'
         : username.charAt(0) + '***';
@@ -507,13 +733,6 @@ socket.on('feed', ({ msg, type }) => {
 
     renderLiveWins();
 });
-
-function pickAvatarColor(seed) {
-    const colors = ['#ef4444', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
-}
 
 function renderLiveWins() {
     const container = document.getElementById('live-wins');
@@ -594,7 +813,7 @@ function initCategoryFilter() {
 }
 
 // ============================================
-// SEARCH (optional)
+// SEARCH
 // ============================================
 function initSearch() {
     const input = document.getElementById('shell-search-input');
@@ -613,18 +832,22 @@ function initSearch() {
 }
 
 // ============================================
-// GAME NAV HIGHLIGHT
+// NAV HIGHLIGHT
 // ============================================
 function highlightCurrentPage() {
     const path = window.location.pathname;
 
-    document.querySelectorAll('.shell-nav-link, .shell-bottom-item, .shell-mobile-links a').forEach(link => {
+    // Normalize /sports → /soccer for active state
+    const normalized = path.startsWith('/sports') ? '/soccer' + path.slice(7) : path;
+
+    document.querySelectorAll('.shell-nav-link, .shell-bottom-item, .shell-mobile-links a, .spo-quick-nav a, .spo-bottom-item, .avi-quick-nav a').forEach(link => {
         const href = link.getAttribute('href');
         if (!href) return;
+        const hrefNorm = href.startsWith('/sports') ? '/soccer' + href.slice(7) : href;
 
-        const isActive = href === path
-            || (href === '/' && path === '/')
-            || (href !== '/' && path.startsWith(href));
+        const isActive = hrefNorm === normalized
+            || (hrefNorm === '/' && normalized === '/')
+            || (hrefNorm !== '/' && normalized.startsWith(hrefNorm));
 
         if (isActive) {
             link.classList.add('active');
@@ -635,7 +858,7 @@ function highlightCurrentPage() {
 }
 
 // ============================================
-// SOCKET — CONNECTION LOG
+// SOCKET LIFECYCLE
 // ============================================
 socket.on('connect', () => {
     console.log('[Shell] Socket connected:', socket.id);
@@ -648,23 +871,29 @@ socket.on('disconnect', (reason) => {
     console.log('[Shell] Socket disconnected:', reason);
 });
 
+socket.on('reconnect', () => {
+    console.log('[Shell] Reconnected');
+    refreshBalance();
+});
+
 // ============================================
 // INIT
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
-    captureReferralCode();   // Must run before checkSession
+    captureReferralCode();
     checkSession();
     setInterval(refreshBalance, 15000);
 
     initCategoryFilter();
     initSearch();
     highlightCurrentPage();
+    updateBetslipBadge();
 
     renderLiveWins();
     bumpJackpot();
     setInterval(bumpJackpot, 2000);
 
-    // Fallback: seed live wins with examples if no real events arrive
+    // Fallback live wins seed
     setTimeout(() => {
         if (liveWins.length === 0) {
             liveWins.push(
@@ -675,3 +904,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 4000);
 });
+
+// ============================================
+// GLOBAL EXPORTS (used by page scripts)
+// ============================================
+window.BetNova = {
+    // State
+    get user() { return currentUser; },
+    get socket() { return socket; },
+    API_BASE,
+
+    // Utilities
+    formatKES,
+    escapeHtml,
+    showToast,
+    pickAvatarColor,
+
+    // Modals
+    openModal,
+    closeModal,
+    toggleMobileMenu,
+    toggleUserMenu,
+
+    // Session
+    checkSession,
+    refreshBalance,
+    handleAuth,
+    handleLogout,
+    requireAuth,
+    showSignInPrompt,
+
+    // Bet slip
+    getBetSlip,
+    addToBetSlip,
+    removeFromBetSlip,
+    clearSharedBetSlip: clearBetSlip,
+    getBetSlipCount,
+    handleOddClick,
+    updateBetslipBadge,
+
+    // Payments
+    handleDeposit,
+    handleWithdraw,
+
+    // KYC
+    sendOTP,
+    verifyOTP,
+    saveLimits,
+
+    // Events
+    bus,
+    emitEvent
+};
