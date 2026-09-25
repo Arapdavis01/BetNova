@@ -2,22 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BetNova — Premium Gaming Platform</title>
-    <meta name="description" content="Play Aviator, Crash, Sports Betting and more. Provably fair. Instant M-Pesa deposits.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e1a">
+    <title>BetNova — Premium Gaming & Soccer Betting</title>
+    <meta name="description" content="Play Aviator, bet on EPL, La Liga, Champions League and more. Provably fair. Instant M-Pesa.">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="shell.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
 </head>
 <body class="shell-body">
 
 <!-- ============================================ -->
-<!-- TOP NAV (sticky) -->
+<!-- TOP NAV -->
 <!-- ============================================ -->
 <header class="shell-topnav">
     <div class="shell-topnav-inner">
+
         <!-- Left: Logo + Hamburger -->
         <div class="shell-topnav-left">
             <button class="shell-hamburger" onclick="toggleMobileMenu()" aria-label="Menu">
@@ -31,17 +33,18 @@
         <!-- Center: Desktop nav links -->
         <nav class="shell-nav-links">
             <a href="/" class="shell-nav-link active">Home</a>
-            <a href="/sports" class="shell-nav-link">Sports <span class="badge-new">NEW</span></a>
+            <a href="/soccer" class="shell-nav-link">Soccer <span class="badge-new">NEW</span></a>
             <a href="/aviator" class="shell-nav-link">Aviator <span class="badge-new">NEW</span></a>
             <a href="/crash" class="shell-nav-link">Crash</a>
-            <a href="#" class="shell-nav-link">Casino <span class="badge-new">NEW</span></a>
+            <a href="#" class="shell-nav-link">Casino</a>
             <a href="#" class="shell-nav-link">Virtuals</a>
-            <a href="/promotions" class="shell-nav-link">Promotions <span class="badge-new">NEW</span></a>
+            <a href="/promotions" class="shell-nav-link">Promotions</a>
             <a href="/promotions#jackpots" class="shell-nav-link">Jackpots</a>
         </nav>
 
-        <!-- Right: Auth / Wallet / User -->
+        <!-- Right: Auth / Wallet / Bet Slip / User -->
         <div class="shell-topnav-right">
+
             <!-- Logged out -->
             <div id="shell-auth-zone" class="shell-auth-zone">
                 <button class="shell-btn shell-btn-ghost" onclick="openModal('signin-modal')">Login</button>
@@ -55,9 +58,16 @@
                     <span id="shell-balance">0.00</span>
                     <span class="shell-currency">KES</span>
                 </div>
-                <button class="shell-icon-btn" onclick="openModal('deposit-modal')" title="Deposit">
+
+                <button class="shell-icon-btn" onclick="openModal('deposit-modal')" title="Deposit" aria-label="Deposit">
                     <i class="fa-solid fa-plus"></i>
                 </button>
+
+                <button class="shell-icon-btn shell-betslip-btn" onclick="openBetslipDrawer()" title="Bet Slip" aria-label="Bet Slip">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span class="shell-betslip-count" id="betslip-count">0</span>
+                </button>
+
                 <div class="shell-user-menu-wrap">
                     <button class="shell-avatar" id="shell-avatar" onclick="toggleUserMenu()">U</button>
                     <div class="shell-user-menu hidden" id="shell-user-menu">
@@ -77,6 +87,9 @@
                         <button class="shell-user-menu-item" onclick="openModal('history-modal')">
                             <i class="fa-solid fa-clock-rotate-left"></i> My Bets
                         </button>
+                        <button class="shell-user-menu-item" onclick="openBetslipDrawer()">
+                            <i class="fa-solid fa-list-check"></i> Bet Slip
+                        </button>
                         <button class="shell-user-menu-item" onclick="location.href='/promotions'">
                             <i class="fa-solid fa-gift"></i> Promotions
                         </button>
@@ -92,6 +105,12 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Bet slip button (always visible, even logged out) -->
+            <button class="shell-icon-btn shell-betslip-btn" onclick="openBetslipDrawer()" title="Bet Slip" aria-label="Bet Slip" id="betslip-header-btn" style="display:none;">
+                <i class="fa-solid fa-list-check"></i>
+                <span class="shell-betslip-count" id="betslip-count-anon">0</span>
+            </button>
         </div>
     </div>
 </header>
@@ -106,14 +125,13 @@
     </div>
     <nav class="shell-mobile-links">
         <a href="/"><i class="fa-solid fa-house"></i> Home</a>
-        <a href="/sports"><i class="fa-solid fa-futbol"></i> Sports <span class="badge-new">NEW</span></a>
+        <a href="/soccer"><i class="fa-solid fa-futbol"></i> Soccer <span class="badge-new">NEW</span></a>
         <a href="/aviator"><i class="fa-solid fa-plane-up"></i> Aviator</a>
         <a href="/crash"><i class="fa-solid fa-chart-line"></i> Crash</a>
         <a href="/cashier"><i class="fa-solid fa-wallet"></i> Cashier</a>
-        <a href="/promotions"><i class="fa-solid fa-gift"></i> Promotions <span class="badge-new">NEW</span></a>
+        <a href="/promotions"><i class="fa-solid fa-gift"></i> Promotions</a>
         <a href="/promotions#jackpots"><i class="fa-solid fa-trophy"></i> Jackpots</a>
         <a href="#"><i class="fa-solid fa-dice"></i> Casino</a>
-        <a href="#"><i class="fa-solid fa-futbol"></i> Virtuals</a>
         <a href="#"><i class="fa-solid fa-headset"></i> Support</a>
     </nav>
 </aside>
@@ -124,7 +142,7 @@
 <!-- ============================================ -->
 <main class="shell-main">
 
-    <!-- Referral banner (only shown if ?ref= was captured) -->
+    <!-- Referral banner -->
     <div id="referral-banner" class="shell-referral-banner hidden">
         <i class="fa-solid fa-gift"></i>
         <span>You were referred! <strong>Sign up now and get KES 50 bonus</strong></span>
@@ -142,14 +160,14 @@
                     <i class="fa-solid fa-bolt"></i> INSTANT M-PESA
                 </span>
                 <h1>Play. Win. <span class="shell-hero-highlight">Cash Out.</span></h1>
-                <p>Kenya's fastest growing gaming platform. Sports betting, crash games, and casino — all in one place. Provably fair. Instant deposits and withdrawals.</p>
+                <p>Soccer betting, crash games, and casino — all in one place. Provably fair. Instant deposits and withdrawals.</p>
                 <div class="shell-hero-cta">
-                    <a href="/aviator" class="shell-btn shell-btn-green shell-btn-lg">
+                    <a href="/soccer" class="shell-btn shell-btn-green shell-btn-lg">
+                        <i class="fa-solid fa-futbol"></i> Bet on Soccer
+                    </a>
+                    <a href="/aviator" class="shell-btn shell-btn-outline shell-btn-lg">
                         <i class="fa-solid fa-plane-up"></i> Play Aviator
                     </a>
-                    <button onclick="openModal('signup-modal')" class="shell-btn shell-btn-outline shell-btn-lg">
-                        Create Account
-                    </button>
                 </div>
             </div>
             <div class="shell-hero-visual">
@@ -157,6 +175,59 @@
                     <i class="fa-solid fa-plane-up"></i>
                 </div>
                 <div class="shell-hero-multiplier">3.35<span>x</span></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ TOP LEAGUES ============ -->
+    <section class="shell-leagues-section">
+        <div class="shell-section-header">
+            <h2 class="shell-section-title">
+                <span class="shell-section-accent"></span>
+                Top Leagues
+            </h2>
+            <a href="/soccer" class="shell-section-link">See all <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+
+        <div class="shell-leagues-grid" id="top-leagues">
+            <!-- Rendered by JS -->
+            <div class="shell-loading-inline">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <span>Loading leagues...</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ LIVE NOW ============ -->
+    <section class="shell-live-section" id="live-section" style="display:none;">
+        <div class="shell-section-header">
+            <h2 class="shell-section-title">
+                <span class="shell-section-accent"></span>
+                <span class="shell-live-dot"></span>
+                Live Now
+            </h2>
+            <a href="/soccer" class="shell-section-link">All live <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+
+        <div class="shell-live-scroll" id="live-now">
+            <!-- Rendered by JS -->
+        </div>
+    </section>
+
+    <!-- ============ POPULAR MATCHES ============ -->
+    <section class="shell-popular-section">
+        <div class="shell-section-header">
+            <h2 class="shell-section-title">
+                <span class="shell-section-accent"></span>
+                Popular Matches
+            </h2>
+            <a href="/soccer" class="shell-section-link">See all <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+
+        <div class="shell-popular-matches" id="popular-matches">
+            <div class="shell-loading-inline">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <span>Loading matches...</span>
             </div>
         </div>
     </section>
@@ -201,40 +272,28 @@
             <!-- Aviator -->
             <a href="/aviator" class="shell-game-card shell-game-card-featured" data-cat="crash">
                 <div class="shell-game-thumb" style="background: linear-gradient(135deg, #ff0044, #7a001f);">
-                    <div class="shell-game-badge-live">
-                        <span></span> LIVE
-                    </div>
-                    <div class="shell-game-icon">
-                        <i class="fa-solid fa-plane"></i>
-                    </div>
+                    <div class="shell-game-badge-live"><span></span> LIVE</div>
+                    <div class="shell-game-icon"><i class="fa-solid fa-plane"></i></div>
                     <div class="shell-game-multiplier">3.35x</div>
                 </div>
                 <div class="shell-game-info">
                     <h3>Aviator</h3>
                     <p>Spribe · Crash</p>
-                    <div class="shell-game-players">
-                        <i class="fa-solid fa-users"></i> 3,367 playing
-                    </div>
+                    <div class="shell-game-players"><i class="fa-solid fa-users"></i> 3,367 playing</div>
                 </div>
             </a>
 
-            <!-- Sports Betting -->
-            <a href="/sports" class="shell-game-card shell-game-card-featured" data-cat="live">
+            <!-- Soccer -->
+            <a href="/soccer" class="shell-game-card shell-game-card-featured" data-cat="live">
                 <div class="shell-game-thumb" style="background: linear-gradient(135deg, #00c853, #00695c);">
-                    <div class="shell-game-badge-live">
-                        <span></span> LIVE
-                    </div>
-                    <div class="shell-game-icon">
-                        <i class="fa-solid fa-futbol"></i>
-                    </div>
+                    <div class="shell-game-badge-live"><span></span> LIVE</div>
+                    <div class="shell-game-icon"><i class="fa-solid fa-futbol"></i></div>
                     <div class="shell-game-multiplier">+87</div>
                 </div>
                 <div class="shell-game-info">
-                    <h3>Sports Betting</h3>
-                    <p>BetNova · Live Odds</p>
-                    <div class="shell-game-players">
-                        <i class="fa-solid fa-users"></i> 1,847 betting
-                    </div>
+                    <h3>Soccer Betting</h3>
+                    <p>EPL · La Liga · UCL</p>
+                    <div class="shell-game-players"><i class="fa-solid fa-users"></i> 1,847 betting</div>
                 </div>
             </a>
 
@@ -247,9 +306,7 @@
                 <div class="shell-game-info">
                     <h3>Crash Classic</h3>
                     <p>BetNova · Crash</p>
-                    <div class="shell-game-players">
-                        <i class="fa-solid fa-users"></i> 1,203 playing
-                    </div>
+                    <div class="shell-game-players"><i class="fa-solid fa-users"></i> 1,203 playing</div>
                 </div>
             </a>
 
@@ -262,9 +319,7 @@
                 <div class="shell-game-info">
                     <h3>JetX</h3>
                     <p>Smartsoft · Crash</p>
-                    <div class="shell-game-players">
-                        <i class="fa-solid fa-users"></i> 892 playing
-                    </div>
+                    <div class="shell-game-players"><i class="fa-solid fa-users"></i> 892 playing</div>
                 </div>
             </a>
 
@@ -276,9 +331,7 @@
                 <div class="shell-game-info">
                     <h3>Dice Roll</h3>
                     <p>BetNova · Casino</p>
-                    <div class="shell-game-players">
-                        <i class="fa-solid fa-users"></i> 546 playing
-                    </div>
+                    <div class="shell-game-players"><i class="fa-solid fa-users"></i> 546 playing</div>
                 </div>
             </a>
 
@@ -290,9 +343,7 @@
                 <div class="shell-game-info">
                     <h3>Plinko</h3>
                     <p>BetNova · Casino</p>
-                    <div class="shell-game-players">
-                        <i class="fa-solid fa-users"></i> 421 playing
-                    </div>
+                    <div class="shell-game-players"><i class="fa-solid fa-users"></i> 421 playing</div>
                 </div>
             </a>
 
@@ -304,9 +355,7 @@
                 <div class="shell-game-info">
                     <h3>Virtual Football</h3>
                     <p>BetNova · Virtuals</p>
-                    <div class="shell-game-players">
-                        <i class="fa-solid fa-users"></i> 218 playing
-                    </div>
+                    <div class="shell-game-players"><i class="fa-solid fa-users"></i> 218 playing</div>
                 </div>
             </a>
 
@@ -318,9 +367,7 @@
                 <div class="shell-game-info">
                     <h3>Mines</h3>
                     <p>BetNova · Casino</p>
-                    <div class="shell-game-players">
-                        <i class="fa-solid fa-users"></i> 312 playing
-                    </div>
+                    <div class="shell-game-players"><i class="fa-solid fa-users"></i> 312 playing</div>
                 </div>
             </a>
         </div>
@@ -333,9 +380,7 @@
                 <span class="shell-jackpot-pulse"></span>
                 <div>
                     <p class="shell-jackpot-label">LIVE JACKPOT</p>
-                    <h3 class="shell-jackpot-amount">
-                        KES <span id="jackpot-amount">1,247,890</span>
-                    </h3>
+                    <h3 class="shell-jackpot-amount">KES <span id="jackpot-amount">1,247,890</span></h3>
                 </div>
             </div>
             <div class="shell-jackpot-right">
@@ -347,21 +392,17 @@
         </div>
     </section>
 
-    <!-- ============ LIVE FEED / SOCIAL PROOF ============ -->
+    <!-- ============ LIVE WINS FEED ============ -->
     <section class="shell-live-feed">
         <div class="shell-section-header">
             <h2 class="shell-section-title">
                 <span class="shell-section-accent"></span>
                 Live Wins
             </h2>
-            <span class="shell-live-indicator">
-                <span></span> LIVE
-            </span>
+            <span class="shell-live-indicator"><span></span> LIVE</span>
         </div>
 
-        <div class="shell-live-wins" id="live-wins">
-            <!-- Rendered by shell.js from real feed events, with fallback examples -->
-        </div>
+        <div class="shell-live-wins" id="live-wins"></div>
     </section>
 
     <!-- ============ TRUST BADGES ============ -->
@@ -403,7 +444,7 @@
         </div>
         <div class="shell-footer-col">
             <h4>Games</h4>
-            <a href="/sports">Sports</a>
+            <a href="/soccer">Soccer</a>
             <a href="/aviator">Aviator</a>
             <a href="/crash">Crash</a>
             <a href="#">Casino</a>
@@ -426,9 +467,7 @@
     </div>
     <div class="shell-footer-bottom">
         <p>© 2026 BetNova Gaming Ltd. All rights reserved.</p>
-        <p class="shell-footer-18">
-            <i class="fa-solid fa-ban"></i> 18+ · Play Responsibly
-        </p>
+        <p class="shell-footer-18"><i class="fa-solid fa-ban"></i> 18+ · Play Responsibly</p>
     </div>
 </footer>
 
@@ -440,9 +479,9 @@
         <i class="fa-solid fa-house"></i>
         <span>Home</span>
     </a>
-    <a href="/sports" class="shell-bottom-item">
+    <a href="/soccer" class="shell-bottom-item">
         <i class="fa-solid fa-futbol"></i>
-        <span>Sports</span>
+        <span>Soccer</span>
     </a>
     <a href="/aviator" class="shell-bottom-item">
         <i class="fa-solid fa-plane-up"></i>
@@ -459,7 +498,78 @@
 </nav>
 
 <!-- ============================================ -->
-<!-- MODALS (shared with all pages) -->
+<!-- BET SLIP DRAWER (shared across pages) -->
+<!-- ============================================ -->
+<aside class="shell-betslip-drawer" id="betslip-drawer" aria-hidden="true">
+    <div class="shell-betslip-drawer-overlay" onclick="closeBetslipDrawer()"></div>
+
+    <div class="shell-betslip-drawer-panel">
+        <div class="shell-betslip-drawer-header">
+            <h3>
+                <i class="fa-solid fa-list-check"></i> Bet Slip
+                <span class="shell-betslip-count-badge" id="betslip-drawer-count">0</span>
+            </h3>
+            <div class="shell-betslip-drawer-actions">
+                <button class="shell-betslip-clear" onclick="clearBetslipDrawer()">Clear</button>
+                <button class="shell-betslip-close" onclick="closeBetslipDrawer()" aria-label="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="shell-betslip-drawer-body" id="betslip-drawer-body">
+            <div class="shell-betslip-empty">
+                <i class="fa-solid fa-ticket"></i>
+                <p>Click on odds to add selections</p>
+                <span>Combine picks for bigger odds</span>
+            </div>
+        </div>
+
+        <div class="shell-betslip-drawer-footer" id="betslip-drawer-footer" style="display:none;">
+            <div class="shell-betslip-summary">
+                <span>Total Odds</span>
+                <strong id="betslip-drawer-total-odds">1.00</strong>
+            </div>
+            <div class="shell-betslip-summary">
+                <span>Selections</span>
+                <strong id="betslip-drawer-selections">0</strong>
+            </div>
+            <div class="shell-betslip-summary shell-betslip-payout">
+                <span>Potential Payout</span>
+                <strong id="betslip-drawer-payout" class="shell-green">KES 0.00</strong>
+            </div>
+
+            <div class="shell-betslip-stake">
+                <label for="betslip-drawer-stake">Stake (KES)</label>
+                <div class="shell-betslip-stake-wrap">
+                    <button onclick="adjustDrawerStake(-50)" aria-label="Decrease">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <input type="number" id="betslip-drawer-stake" value="100" min="10" step="10"
+                           inputmode="numeric" oninput="recalcDrawer()">
+                    <button onclick="adjustDrawerStake(50)" aria-label="Increase">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="shell-betslip-chips">
+                <button onclick="setDrawerStake(50)">50</button>
+                <button onclick="setDrawerStake(100)">100</button>
+                <button onclick="setDrawerStake(250)">250</button>
+                <button onclick="setDrawerStake(500)">500</button>
+                <button onclick="setDrawerStake(1000)">1K</button>
+            </div>
+
+            <button class="shell-betslip-place-btn" id="betslip-drawer-place" onclick="placeDrawerBet()">
+                <i class="fa-solid fa-bolt"></i> Place Bet
+            </button>
+        </div>
+    </div>
+</aside>
+
+<!-- ============================================ -->
+<!-- MODALS -->
 <!-- ============================================ -->
 <div id="signin-modal" class="shell-modal hidden">
     <div class="shell-modal-card">
@@ -486,7 +596,6 @@
             <input id="signup-user" type="text" placeholder="Username (min 3 chars)" required minlength="3" class="shell-input">
             <input id="signup-pass" type="password" placeholder="Password (min 4 chars)" required minlength="4" class="shell-input">
 
-            <!-- Referral code (auto-filled from URL) -->
             <div id="signup-ref-wrap" class="hidden">
                 <input id="signup-ref" type="text" readonly class="shell-input shell-input-ref">
                 <p class="shell-ref-hint">
@@ -582,5 +691,6 @@
 <div id="toast" class="shell-toast hidden"></div>
 
 <script src="shell.js"></script>
+<script src="home.js"></script>
 </body>
 </html>
