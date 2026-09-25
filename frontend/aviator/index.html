@@ -2,80 +2,71 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e1a">
     <title>Aviator — BetNova</title>
     <meta name="description" content="Play Aviator on BetNova. Provably fair crash game with instant M-Pesa deposits.">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/aviator/aviator.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <!-- ============================================ -->
-<!-- TOP BAR -->
+<!-- TOP BAR (compact, unified) -->
 <!-- ============================================ -->
 <header class="avi-header">
     <div class="avi-header-inner">
 
-        <!-- LEFT: Back + Logo + quick game nav -->
+        <!-- LEFT: Back + Logo -->
         <div class="avi-header-left">
-            <a href="/" class="avi-back" title="Back to Home">
-                <i class="fa-solid fa-arrow-left"></i>
-                <span class="avi-logo">
-                    <span class="avi-logo-red">Bet</span><span class="avi-logo-white">Nova</span>
-                    <span class="avi-logo-sub">Aviator</span>
-                </span>
+            <a href="/" class="avi-back" aria-label="Back to Home">
+                <i class="fa-solid fa-chevron-left"></i>
             </a>
-
-            <nav class="avi-quick-nav">
-                <a href="/" title="Home" aria-label="Home">
-                    <i class="fa-solid fa-house"></i>
-                </a>
-                <a href="/aviator" class="active" title="Aviator" aria-label="Aviator">
-                    <i class="fa-solid fa-plane-up"></i>
-                </a>
-                <a href="/crash" title="Crash" aria-label="Crash">
-                    <i class="fa-solid fa-chart-line"></i>
-                </a>
-                <a href="/sports" title="Sports" aria-label="Sports">
-                    <i class="fa-solid fa-futbol"></i>
-                </a>
-                <a href="/cashier" title="Cashier" aria-label="Cashier">
-                    <i class="fa-solid fa-wallet"></i>
-                </a>
-                <a href="/promotions" title="Promotions" aria-label="Promotions">
-                    <i class="fa-solid fa-gift"></i>
-                </a>
-            </nav>
+            <a href="/" class="avi-logo" aria-label="BetNova Home">
+                <span class="avi-logo-red">Bet</span><span class="avi-logo-white">Nova</span>
+            </a>
+            <span class="avi-game-tag">Aviator</span>
         </div>
+
+        <!-- CENTER: Game quick nav (desktop only) -->
+        <nav class="avi-quick-nav" aria-label="Quick navigation">
+            <a href="/" title="Home"><i class="fa-solid fa-house"></i><span>Home</span></a>
+            <a href="/aviator" class="active" title="Aviator"><i class="fa-solid fa-plane-up"></i><span>Aviator</span></a>
+            <a href="/crash" title="Crash"><i class="fa-solid fa-chart-line"></i><span>Crash</span></a>
+            <a href="/sports" title="Sports"><i class="fa-solid fa-futbol"></i><span>Sports</span></a>
+            <a href="/cashier" title="Cashier"><i class="fa-solid fa-wallet"></i><span>Cashier</span></a>
+            <a href="/promotions" title="Promotions"><i class="fa-solid fa-gift"></i><span>Promos</span></a>
+        </nav>
 
         <!-- RIGHT: Balance + actions -->
         <div class="avi-header-right">
-            <div class="avi-balance-chip" id="balance-chip" title="Your balance" onclick="location.href='/cashier'">
+            <button class="avi-balance-chip" id="balance-chip" onclick="location.href='/cashier'" aria-label="Open Cashier">
                 <i class="fa-solid fa-wallet"></i>
                 <span id="balance-display">0.00</span>
                 <span class="avi-currency">KES</span>
-            </div>
-
-            <button class="avi-icon-btn" onclick="openModal('deposit-modal')" title="Deposit" aria-label="Deposit">
-                <i class="fa-solid fa-plus"></i>
             </button>
 
-            <button class="avi-icon-btn" onclick="openModal('withdraw-modal')" title="Withdraw" aria-label="Withdraw">
+            <button class="avi-icon-btn avi-deposit-btn" onclick="openModal('deposit-modal')" aria-label="Deposit">
+                <i class="fa-solid fa-plus"></i>
+                <span class="avi-icon-label">Deposit</span>
+            </button>
+
+            <button class="avi-icon-btn avi-desktop-only" onclick="openModal('withdraw-modal')" aria-label="Withdraw">
                 <i class="fa-solid fa-arrow-up-from-bracket"></i>
             </button>
 
-            <button class="avi-icon-btn" id="sound-toggle" onclick="toggleSound()" title="Toggle sound" aria-label="Toggle sound">
+            <button class="avi-icon-btn" id="sound-toggle" onclick="toggleSound()" aria-label="Toggle sound">
                 <i class="fa-solid fa-volume-high"></i>
             </button>
 
-            <button class="avi-icon-btn avi-chat-toggle" onclick="toggleChat()" title="Live chat" aria-label="Live chat">
+            <button class="avi-icon-btn avi-chat-toggle" onclick="toggleChat()" aria-label="Live chat">
                 <i class="fa-solid fa-comments"></i>
             </button>
 
-            <button class="avi-icon-btn avi-user-toggle" onclick="openModal('profile-modal')" title="Profile" aria-label="Profile">
+            <button class="avi-icon-btn avi-desktop-only" onclick="openModal('profile-modal')" aria-label="Profile">
                 <i class="fa-solid fa-user"></i>
             </button>
         </div>
@@ -83,7 +74,7 @@
 </header>
 
 <!-- ============================================ -->
-<!-- MAIN LAYOUT (3 columns desktop) -->
+<!-- MAIN LAYOUT -->
 <!-- ============================================ -->
 <main class="avi-layout">
 
@@ -96,19 +87,22 @@
         </div>
 
         <div class="avi-bets-summary">
-            <span class="avi-bets-count-label">ALL BETS</span>
+            <span class="avi-bets-count-label">Total bets</span>
             <span class="avi-bets-count" id="bets-count">0</span>
         </div>
 
         <div class="avi-bets-header">
             <span>Player</span>
-            <span>Bet KES</span>
+            <span>Bet</span>
             <span>X</span>
-            <span>Win KES</span>
+            <span>Win</span>
         </div>
 
         <div class="avi-bets-list" id="bets-list">
-            <div class="avi-empty-state">No active bets</div>
+            <div class="avi-empty-state">
+                <i class="fa-solid fa-plane-circle-check"></i>
+                <span>Waiting for players...</span>
+            </div>
         </div>
     </aside>
 
@@ -116,21 +110,17 @@
     <section class="avi-game">
 
         <!-- Jackpot banner -->
-        <div class="avi-jackpot">
+        <a href="/promotions#jackpots" class="avi-jackpot">
             <span class="avi-live-dot"></span>
             <span class="avi-live-label">LIVE</span>
             <span class="avi-jackpot-text">
-                Mfalme Wa Anga <strong>KES 400,000</strong> Daily Crown
+                <strong>Mfalme Wa Anga</strong> · KES 400,000 Daily Crown
             </span>
-            <a href="/promotions#jackpots" class="avi-jackpot-arrow" aria-label="Jackpot info">
-                <i class="fa-solid fa-arrow-right"></i>
-            </a>
-        </div>
+            <i class="fa-solid fa-chevron-right avi-jackpot-arrow"></i>
+        </a>
 
         <!-- Crash history strip -->
-        <div class="avi-history-strip" id="history-strip">
-            <!-- Filled dynamically -->
-        </div>
+        <div class="avi-history-strip" id="history-strip"></div>
 
         <!-- Game canvas -->
         <div class="avi-canvas-wrap">
@@ -141,7 +131,7 @@
                 <div class="avi-lock-inner">
                     <i class="fa-solid fa-lock"></i>
                     <h3>Sign in to play</h3>
-                    <p>Join the round to place your bet</p>
+                    <p>Join the round and place your bet</p>
                     <button onclick="location.href='/'">Go to Home</button>
                 </div>
             </div>
@@ -149,6 +139,7 @@
 
         <!-- Dual bet panels -->
         <div class="avi-bet-panels">
+
             <!-- BET PANEL 1 -->
             <div class="avi-bet-panel" id="bet-panel-1">
                 <div class="avi-bet-tabs">
@@ -159,7 +150,10 @@
                 <div class="avi-bet-body" data-panel="1">
                     <div class="avi-stake-row">
                         <button class="avi-stake-btn" onclick="adjustStake(1, -10)" aria-label="Decrease stake">−</button>
-                        <input type="number" class="avi-stake-input" id="stake-1" value="10" min="10" step="10" aria-label="Stake amount">
+                        <div class="avi-stake-input-wrap">
+                            <input type="number" class="avi-stake-input" id="stake-1" value="10" min="10" step="10" inputmode="numeric">
+                            <span class="avi-stake-suffix">KES</span>
+                        </div>
                         <button class="avi-stake-btn" onclick="adjustStake(1, 10)" aria-label="Increase stake">+</button>
                     </div>
 
@@ -167,11 +161,12 @@
                         <button onclick="setStake(1, 100)">100</button>
                         <button onclick="setStake(1, 250)">250</button>
                         <button onclick="setStake(1, 1000)">1,000</button>
-                        <button onclick="setStake(1, 25000)">25,000</button>
+                        <button onclick="setStake(1, 5000)">5,000</button>
                     </div>
 
                     <button class="avi-action-btn avi-action-bet" id="action-1" onclick="handleBetAction(1)">
-                        BET 10.00 KES
+                        <span class="avi-btn-title">BET</span>
+                        <span class="avi-btn-subtext">KES 10.00</span>
                     </button>
                 </div>
 
@@ -180,7 +175,7 @@
                     <div class="avi-auto-row">
                         <label>Auto Cashout</label>
                         <div class="avi-auto-input-wrap">
-                            <input type="number" class="avi-auto-input" id="auto-cashout-1" placeholder="2.00" step="0.01" min="1.01">
+                            <input type="number" class="avi-auto-input" id="auto-cashout-1" placeholder="2.00" step="0.01" min="1.01" inputmode="decimal">
                             <span>x</span>
                         </div>
                     </div>
@@ -191,7 +186,8 @@
                         </div>
                     </div>
                     <button class="avi-action-btn avi-action-bet" id="action-1-auto" onclick="handleBetAction(1)">
-                        BET 10.00 KES
+                        <span class="avi-btn-title">BET</span>
+                        <span class="avi-btn-subtext">KES 10.00</span>
                     </button>
                 </div>
             </div>
@@ -206,7 +202,10 @@
                 <div class="avi-bet-body" data-panel="2">
                     <div class="avi-stake-row">
                         <button class="avi-stake-btn" onclick="adjustStake(2, -10)" aria-label="Decrease stake">−</button>
-                        <input type="number" class="avi-stake-input" id="stake-2" value="10" min="10" step="10" aria-label="Stake amount">
+                        <div class="avi-stake-input-wrap">
+                            <input type="number" class="avi-stake-input" id="stake-2" value="10" min="10" step="10" inputmode="numeric">
+                            <span class="avi-stake-suffix">KES</span>
+                        </div>
                         <button class="avi-stake-btn" onclick="adjustStake(2, 10)" aria-label="Increase stake">+</button>
                     </div>
 
@@ -214,11 +213,12 @@
                         <button onclick="setStake(2, 100)">100</button>
                         <button onclick="setStake(2, 250)">250</button>
                         <button onclick="setStake(2, 1000)">1,000</button>
-                        <button onclick="setStake(2, 25000)">25,000</button>
+                        <button onclick="setStake(2, 5000)">5,000</button>
                     </div>
 
                     <button class="avi-action-btn avi-action-bet" id="action-2" onclick="handleBetAction(2)">
-                        BET 10.00 KES
+                        <span class="avi-btn-title">BET</span>
+                        <span class="avi-btn-subtext">KES 10.00</span>
                     </button>
                 </div>
 
@@ -226,7 +226,7 @@
                     <div class="avi-auto-row">
                         <label>Auto Cashout</label>
                         <div class="avi-auto-input-wrap">
-                            <input type="number" class="avi-auto-input" id="auto-cashout-2" placeholder="2.00" step="0.01" min="1.01">
+                            <input type="number" class="avi-auto-input" id="auto-cashout-2" placeholder="2.00" step="0.01" min="1.01" inputmode="decimal">
                             <span>x</span>
                         </div>
                     </div>
@@ -237,7 +237,8 @@
                         </div>
                     </div>
                     <button class="avi-action-btn avi-action-bet" id="action-2-auto" onclick="handleBetAction(2)">
-                        BET 10.00 KES
+                        <span class="avi-btn-title">BET</span>
+                        <span class="avi-btn-subtitle">KES 10.00</span>
                     </button>
                 </div>
             </div>
@@ -245,11 +246,11 @@
 
         <!-- Provably fair footer -->
         <div class="avi-fair-footer">
-            <span>Provably Fair Game</span>
+            <span><i class="fa-solid fa-shield-halved"></i> Provably Fair</span>
             <span class="avi-divider">·</span>
             <a href="#" onclick="openModal('fairness-modal'); return false;">Verify</a>
             <span class="avi-divider">·</span>
-            <span>Powered by BetNova</span>
+            <span>Round #<span id="avi-round-id">—</span></span>
         </div>
     </section>
 
@@ -258,7 +259,11 @@
         <div class="avi-chat-header">
             <span class="avi-chat-title">
                 <i class="fa-solid fa-comments"></i>
-                <span id="chat-online">0</span> online
+                Live Chat
+            </span>
+            <span class="avi-chat-online">
+                <span class="avi-online-dot"></span>
+                <span id="chat-online">0</span>
             </span>
             <button class="avi-chat-close" onclick="toggleChat()" aria-label="Close chat">
                 <i class="fa-solid fa-xmark"></i>
@@ -266,12 +271,15 @@
         </div>
 
         <div class="avi-chat-messages" id="chat-messages">
-            <div class="avi-chat-empty">Be the first to say something</div>
+            <div class="avi-chat-empty">
+                <i class="fa-solid fa-comments"></i>
+                <span>Be the first to say something</span>
+            </div>
         </div>
 
         <div class="avi-chat-input-row">
-            <input type="text" id="chat-input" placeholder="Your message..." maxlength="200"
-                   onkeydown="if(event.key==='Enter') sendChat()" aria-label="Chat message">
+            <input type="text" id="chat-input" placeholder="Type a message..." maxlength="200"
+                   onkeydown="if(event.key==='Enter') sendChat()" aria-label="Chat message" autocomplete="off">
             <button onclick="sendChat()" aria-label="Send message">
                 <i class="fa-solid fa-paper-plane"></i>
             </button>
@@ -287,21 +295,21 @@
         <i class="fa-solid fa-house"></i>
         <span>Home</span>
     </a>
-    <a href="/aviator" class="avi-bottom-item active">
-        <i class="fa-solid fa-plane-up"></i>
-        <span>Aviator</span>
-    </a>
     <a href="/sports" class="avi-bottom-item">
         <i class="fa-solid fa-futbol"></i>
         <span>Sports</span>
+    </a>
+    <a href="/aviator" class="avi-bottom-item active">
+        <i class="fa-solid fa-plane-up"></i>
+        <span>Aviator</span>
     </a>
     <a href="/cashier" class="avi-bottom-item">
         <i class="fa-solid fa-wallet"></i>
         <span>Cashier</span>
     </a>
-    <a href="#" onclick="openModal('profile-modal'); return false;" class="avi-bottom-item">
-        <i class="fa-solid fa-user"></i>
-        <span>Profile</span>
+    <a href="/promotions" class="avi-bottom-item">
+        <i class="fa-solid fa-gift"></i>
+        <span>Promos</span>
     </a>
 </nav>
 
@@ -312,12 +320,14 @@
     <div class="avi-modal-card">
         <button class="avi-modal-close" onclick="closeModal('deposit-modal')" aria-label="Close">&times;</button>
         <h3>Deposit Funds</h3>
-        <p>Instant M-Pesa STK Push</p>
+        <p class="avi-modal-sub">Instant M-Pesa STK Push</p>
         <label class="avi-modal-label">Amount (KES)</label>
-        <input type="number" id="deposit-amount" value="100" min="10" max="150000" step="10" class="avi-modal-input">
+        <input type="number" id="deposit-amount" value="100" min="10" max="150000" step="10" class="avi-modal-input" inputmode="numeric">
         <label class="avi-modal-label">M-Pesa Phone</label>
-        <input type="tel" id="deposit-phone" placeholder="0712345678" class="avi-modal-input">
-        <button onclick="handleDeposit()" class="avi-modal-btn">Send M-Pesa Request</button>
+        <input type="tel" id="deposit-phone" placeholder="0712345678" class="avi-modal-input" inputmode="tel">
+        <button onclick="handleDeposit()" class="avi-modal-btn">
+            <i class="fa-solid fa-bolt"></i> Send M-Pesa Request
+        </button>
     </div>
 </div>
 
@@ -325,12 +335,14 @@
     <div class="avi-modal-card">
         <button class="avi-modal-close" onclick="closeModal('withdraw-modal')" aria-label="Close">&times;</button>
         <h3>Withdraw Funds</h3>
-        <p>Sent to M-Pesa within minutes</p>
+        <p class="avi-modal-sub">Sent to M-Pesa within minutes</p>
         <label class="avi-modal-label">Amount (KES)</label>
-        <input type="number" id="withdraw-amount" value="100" min="50" step="10" class="avi-modal-input">
+        <input type="number" id="withdraw-amount" value="100" min="50" step="10" class="avi-modal-input" inputmode="numeric">
         <label class="avi-modal-label">M-Pesa Phone</label>
-        <input type="tel" id="withdraw-phone" placeholder="0712345678" class="avi-modal-input">
-        <button onclick="handleWithdraw()" class="avi-modal-btn">Withdraw to M-Pesa</button>
+        <input type="tel" id="withdraw-phone" placeholder="0712345678" class="avi-modal-input" inputmode="tel">
+        <button onclick="handleWithdraw()" class="avi-modal-btn">
+            <i class="fa-solid fa-money-bill-transfer"></i> Withdraw to M-Pesa
+        </button>
     </div>
 </div>
 
@@ -338,7 +350,10 @@
     <div class="avi-modal-card avi-modal-wide">
         <button class="avi-modal-close" onclick="closeModal('history-modal')" aria-label="Close">&times;</button>
         <h3>My Bets</h3>
-        <div id="history-list" class="avi-history-list">Loading...</div>
+        <p class="avi-modal-sub">Recent Aviator rounds</p>
+        <div id="history-list" class="avi-history-list">
+            <p class="avi-empty-state"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</p>
+        </div>
     </div>
 </div>
 
@@ -346,10 +361,10 @@
     <div class="avi-modal-card avi-modal-wide">
         <button class="avi-modal-close" onclick="closeModal('fairness-modal')" aria-label="Close">&times;</button>
         <h3>Provably Fair</h3>
-        <p class="avi-modal-desc">Every round is cryptographically verifiable.</p>
+        <p class="avi-modal-sub">Every round is cryptographically verifiable.</p>
         <div class="avi-fairness-grid">
             <div><label>Round</label><div id="pf-round">—</div></div>
-            <div><label>Hash</label><div id="pf-hash" class="truncate">—</div></div>
+            <div><label>Hash</label><div id="pf-hash" class="avi-truncate">—</div></div>
             <div><label>Seed</label><div id="pf-seed">Waiting...</div></div>
             <div><label>Crash</label><div id="pf-crash">—</div></div>
         </div>
@@ -362,10 +377,12 @@
         <button class="avi-modal-close" onclick="closeModal('profile-modal')" aria-label="Close">&times;</button>
         <h3>Profile</h3>
         <p id="profile-name" class="avi-profile-name">—</p>
-        <button onclick="location.href='/cashier'" class="avi-modal-btn" style="margin-bottom: 8px;">
+        <button onclick="location.href='/cashier'" class="avi-modal-btn">
             <i class="fa-solid fa-wallet"></i> Open Cashier
         </button>
-        <button onclick="handleLogout()" class="avi-modal-btn avi-modal-btn-danger">Log Out</button>
+        <button onclick="handleLogout()" class="avi-modal-btn avi-modal-btn-danger">
+            <i class="fa-solid fa-right-from-bracket"></i> Log Out
+        </button>
     </div>
 </div>
 
