@@ -4,25 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Promotions & Jackpots — BetNova</title>
+    <meta name="description" content="Live jackpots, bonus codes, and daily draws on BetNova.">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="promotions.css">
+    <link rel="stylesheet" href="/promotions/promotions.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <header class="promo-header">
     <div class="promo-header-inner">
-        <a href="/" class="promo-back">
-            <i class="fa-solid fa-arrow-left"></i>
-            <span class="promo-logo">
-                <span class="promo-logo-red">Bet</span><span class="promo-logo-white">Nova</span>
-                <span class="promo-logo-sub">Promotions</span>
-            </span>
-        </a>
+        <div class="promo-header-left">
+            <a href="/" class="promo-back" title="Back to Home">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span class="promo-logo">
+                    <span class="promo-logo-red">Bet</span><span class="promo-logo-white">Nova</span>
+                    <span class="promo-logo-sub">Promotions</span>
+                </span>
+            </a>
+
+            <nav class="promo-quick-nav">
+                <a href="/" title="Home" aria-label="Home">
+                    <i class="fa-solid fa-house"></i>
+                </a>
+                <a href="/sports" title="Sports" aria-label="Sports">
+                    <i class="fa-solid fa-futbol"></i>
+                </a>
+                <a href="/aviator" title="Aviator" aria-label="Aviator">
+                    <i class="fa-solid fa-plane-up"></i>
+                </a>
+                <a href="/crash" title="Crash" aria-label="Crash">
+                    <i class="fa-solid fa-chart-line"></i>
+                </a>
+                <a href="/cashier" title="Cashier" aria-label="Cashier">
+                    <i class="fa-solid fa-wallet"></i>
+                </a>
+            </nav>
+        </div>
+
         <div class="promo-header-right">
-            <div class="promo-balance-chip">
+            <div class="promo-balance-chip" onclick="location.href='/cashier'" title="Open Cashier">
                 <i class="fa-solid fa-wallet"></i>
                 <span id="balance-display">0.00</span>
                 <span class="promo-currency">KES</span>
@@ -40,7 +62,7 @@
     </section>
 
     <!-- Jackpots -->
-    <section class="promo-section">
+    <section class="promo-section" id="jackpots">
         <div class="promo-section-header">
             <h2><i class="fa-solid fa-trophy"></i> Live Jackpots</h2>
             <span class="promo-live-indicator">
@@ -62,7 +84,7 @@
         <div class="promo-redeem-card">
             <div class="promo-redeem-input-wrap">
                 <input type="text" id="promo-code-input" placeholder="Enter promo code (e.g., WELCOME100)"
-                       maxlength="20" autocomplete="off">
+                       maxlength="20" autocomplete="off" spellcheck="false">
                 <button onclick="redeemPromoCode()" id="redeem-btn">
                     <i class="fa-solid fa-gift"></i> Redeem
                 </button>
@@ -94,9 +116,33 @@
     </section>
 </main>
 
+<!-- Mobile bottom nav -->
+<nav class="promo-bottom-nav">
+    <a href="/" class="promo-bottom-item">
+        <i class="fa-solid fa-house"></i>
+        <span>Home</span>
+    </a>
+    <a href="/sports" class="promo-bottom-item">
+        <i class="fa-solid fa-futbol"></i>
+        <span>Sports</span>
+    </a>
+    <a href="/aviator" class="promo-bottom-item">
+        <i class="fa-solid fa-plane-up"></i>
+        <span>Aviator</span>
+    </a>
+    <a href="/cashier" class="promo-bottom-item">
+        <i class="fa-solid fa-wallet"></i>
+        <span>Cashier</span>
+    </a>
+    <a href="/promotions" class="promo-bottom-item active">
+        <i class="fa-solid fa-gift"></i>
+        <span>Promos</span>
+    </a>
+</nav>
+
 <!-- Toast -->
 <div id="toast" class="promo-toast hidden"></div>
 
-<script src="promotions.js"></script>
+<script src="/promotions/promotions.js"></script>
 </body>
 </html>
