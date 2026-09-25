@@ -1,31 +1,43 @@
 /* ============================================
-   BetNova Aviator — Professional Stylesheet
-   Matches: moving canvas, dual bet panels, chat drawer
+   BetNova Aviator — SPRIBE-matched Stylesheet
+   Blue glow canvas · Sunburst rays · Crimson red
    ============================================ */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+    /* Backgrounds */
     --bg-page: #0a0e1a;
     --bg-panel: #0f1420;
     --bg-elev: #1a2030;
     --bg-input: #1e2536;
+    --bg-canvas: #000000;
+
+    /* Borders */
     --border: rgba(255, 255, 255, 0.08);
     --border-hi: rgba(255, 255, 255, 0.14);
+
+    /* Text */
     --text: #ffffff;
     --text-dim: #94a3b8;
     --text-mute: #64748b;
-    --green: #00c853;
-    --green-hi: #00e05e;
-    --green-glow: rgba(0, 200, 83, 0.4);
+
+    /* Brand colors */
     --red: #ef4444;
     --red-hi: #f87171;
     --red-glow: rgba(239, 68, 68, 0.5);
     --crimson: #d91d36;
+    --crimson-bright: #ff2d55;
     --crimson-glow: rgba(217, 29, 54, 0.55);
+
+    --green: #00c853;
+    --green-hi: #00e05e;
+    --green-glow: rgba(0, 200, 83, 0.4);
+
     --yellow: #fbbf24;
-    --purple: #a855f7;
     --amber: #f59e0b;
+    --purple: #a855f7;
+    --blue: #60a5fa;
 }
 
 html, body {
@@ -83,33 +95,40 @@ button { font-family: inherit; }
 }
 
 .avi-back {
-    width: 36px;
+    width: auto;
     height: 36px;
+    padding: 0 12px;
     border-radius: 10px;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    color: var(--text-dim);
+    gap: 6px;
+    color: var(--text);
     text-decoration: none;
     transition: all 0.15s;
     flex-shrink: 0;
+    font-weight: 700;
+    font-size: 13px;
 }
 .avi-back:hover {
     background: rgba(255, 255, 255, 0.05);
-    color: white;
 }
-.avi-back i { font-size: 16px; }
+.avi-back i { font-size: 14px; }
+.avi-back span { font-size: 13px; }
 
 .avi-logo {
     display: inline-flex;
     align-items: baseline;
     text-decoration: none;
-    font-size: 18px;
+    font-size: 22px;
     font-weight: 900;
     font-style: italic;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
+    font-family: 'Inter', sans-serif;
 }
-.avi-logo-red { color: var(--red); }
+.avi-logo-red {
+    color: var(--crimson);
+    text-shadow: 0 0 12px var(--crimson-glow);
+}
 .avi-logo-white { color: var(--text); }
 
 .avi-game-tag {
@@ -169,23 +188,23 @@ button { font-family: inherit; }
     align-items: center;
     gap: 6px;
     padding: 8px 12px;
-    background: var(--bg-elev);
-    border: 1px solid var(--border);
+    background: transparent;
+    border: 1px solid transparent;
     border-radius: 10px;
-    color: white;
-    font-weight: 800;
-    font-size: 13px;
+    color: var(--green);
+    font-weight: 900;
+    font-size: 16px;
     cursor: pointer;
     transition: all 0.15s;
     font-family: inherit;
 }
 .avi-balance-chip:hover {
-    border-color: var(--green);
-    transform: translateY(-1px);
+    background: rgba(0, 200, 83, 0.06);
+    border-color: rgba(0, 200, 83, 0.2);
 }
-.avi-balance-chip i { color: var(--green); font-size: 11px; }
+.avi-balance-chip i { display: none; }
 .avi-currency {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--green);
     font-weight: 700;
     letter-spacing: 0.05em;
@@ -195,10 +214,10 @@ button { font-family: inherit; }
     height: 36px;
     min-width: 36px;
     padding: 0 10px;
-    background: var(--bg-elev);
-    border: 1px solid var(--border);
+    background: transparent;
+    border: 1px solid transparent;
     border-radius: 10px;
-    color: var(--text);
+    color: var(--text-dim);
     cursor: pointer;
     transition: all 0.15s;
     display: inline-flex;
@@ -209,16 +228,16 @@ button { font-family: inherit; }
     font-family: inherit;
 }
 .avi-icon-btn:hover {
-    background: var(--bg-input);
-    border-color: var(--green);
-    color: var(--green);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
 }
 .avi-icon-btn.muted { color: var(--text-mute); }
 
 .avi-deposit-btn {
-    background: linear-gradient(135deg, var(--green), #059669) !important;
+    background: var(--green) !important;
     border-color: var(--green) !important;
     color: white !important;
+    font-weight: 800;
 }
 .avi-deposit-btn:hover {
     box-shadow: 0 0 16px var(--green-glow);
@@ -440,24 +459,35 @@ button { font-family: inherit; }
     100% { transform: translateX(100%); }
 }
 .avi-live-dot {
-    width: 8px;
-    height: 8px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    background: var(--red);
-    box-shadow: 0 0 10px var(--red);
-    animation: pulse 1.5s infinite;
+    background: transparent;
+    border: 2px solid var(--amber);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
     position: relative;
     z-index: 1;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.avi-live-dot::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    animation: pulse 1.5s infinite;
 }
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
 }
 .avi-live-label {
-    color: var(--red);
+    color: var(--amber);
     font-weight: 800;
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0.08em;
     position: relative;
     z-index: 1;
@@ -466,12 +496,13 @@ button { font-family: inherit; }
 .avi-jackpot-text {
     flex: 1;
     text-align: center;
-    font-size: 12px;
-    color: var(--text-dim);
+    font-size: 13px;
+    color: #e5e7eb;
     position: relative;
     z-index: 1;
+    font-weight: 700;
 }
-.avi-jackpot-text strong { color: var(--yellow); font-weight: 800; }
+.avi-jackpot-text strong { color: var(--yellow); font-weight: 900; }
 .avi-jackpot-arrow {
     font-size: 12px;
     color: var(--yellow);
@@ -479,49 +510,64 @@ button { font-family: inherit; }
     z-index: 1;
     transition: transform 0.15s;
     flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--yellow);
+    color: #000;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
 }
 .avi-jackpot:hover .avi-jackpot-arrow { transform: translateX(4px); }
 
 /* History strip */
 .avi-history-strip {
     display: flex;
-    gap: 6px;
+    gap: 14px;
     overflow-x: auto;
-    padding: 4px 0;
+    padding: 6px 4px;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
 }
 .avi-history-strip::-webkit-scrollbar { display: none; }
 .avi-history-chip {
     flex-shrink: 0;
-    padding: 5px 12px;
-    border-radius: 20px;
     font-family: 'JetBrains Mono', monospace;
-    font-weight: 800;
-    font-size: 12px;
-    border: 1px solid;
+    font-weight: 900;
+    font-size: 13px;
     transition: all 0.15s;
+    border: none;
+    background: transparent;
+    padding: 0;
 }
 .avi-history-chip.low {
     color: var(--purple);
-    border-color: rgba(168, 85, 247, 0.4);
-    background: rgba(168, 85, 247, 0.08);
 }
 .avi-history-chip.mid {
-    color: var(--yellow);
-    border-color: rgba(251, 191, 36, 0.4);
-    background: rgba(251, 191, 36, 0.08);
+    color: var(--purple);
+    opacity: 0.85;
 }
 .avi-history-chip.high {
-    color: var(--green);
-    border-color: rgba(0, 200, 83, 0.4);
-    background: rgba(0, 200, 83, 0.08);
+    color: var(--blue);
+    text-shadow: 0 0 12px rgba(96, 165, 250, 0.5);
+}
+.avi-history-chip:hover {
+    transform: scale(1.15);
+    cursor: default;
 }
 
-/* Canvas */
+/* Canvas — the big one */
 .avi-canvas-wrap {
     position: relative;
-    background: radial-gradient(ellipse at center, #1a0510 0%, #050205 70%);
+    background: radial-gradient(
+        ellipse at 55% 55%,
+        #2a3a5c 0%,
+        #1a2030 25%,
+        #0a0e1a 55%,
+        #050205 100%
+    );
     border-radius: 14px;
     border: 1px solid var(--border);
     overflow: hidden;
@@ -530,8 +576,41 @@ button { font-family: inherit; }
     align-items: center;
     justify-content: center;
     box-shadow:
-        inset 0 0 80px rgba(0, 0, 0, 0.6),
-        0 0 0 1px rgba(217, 29, 54, 0.08);
+        inset 0 0 100px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(96, 165, 250, 0.05);
+}
+
+/* Radiating sunburst rays (behind everything) */
+.avi-canvas-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-conic-gradient(
+        from 210deg at 8% 98%,
+        rgba(255, 255, 255, 0.045) 0deg 2deg,
+        transparent 2deg 14deg
+    );
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.9;
+}
+
+/* Subtle center glow behind multiplier */
+.avi-canvas-wrap::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(
+        ellipse at center,
+        rgba(100, 180, 255, 0.08) 0%,
+        transparent 70%
+    );
+    pointer-events: none;
+    z-index: 0;
 }
 
 .avi-status-badge {
@@ -560,23 +639,25 @@ button { font-family: inherit; }
     transform: translate(-50%, -50%);
     font-family: 'Orbitron', monospace;
     font-weight: 900;
-    font-size: 96px;
-    letter-spacing: -0.03em;
+    font-size: 104px;
+    letter-spacing: -0.04em;
     color: white;
     text-shadow:
-        0 0 30px rgba(255, 255, 255, 0.4),
-        0 0 70px rgba(255, 45, 85, 0.35);
+        0 0 20px rgba(255, 255, 255, 0.7),
+        0 0 60px rgba(100, 180, 255, 0.5),
+        0 0 120px rgba(100, 180, 255, 0.25);
     z-index: 3;
     pointer-events: none;
     transition: color 0.15s, text-shadow 0.3s;
     line-height: 1;
 }
-.avi-multiplier span { font-size: 48px; opacity: 0.85; }
+.avi-multiplier span { font-size: 52px; opacity: 0.9; }
 .avi-multiplier.crashed {
     color: var(--red);
     text-shadow:
-        0 0 40px var(--red-glow),
-        0 0 80px rgba(239, 68, 68, 0.4);
+        0 0 30px rgba(255, 100, 100, 0.9),
+        0 0 80px var(--red-glow),
+        0 0 140px rgba(239, 68, 68, 0.4);
     animation: shake 0.4s;
 }
 @keyframes shake {
@@ -800,13 +881,17 @@ button { font-family: inherit; }
 }
 
 .avi-action-bet {
-    background: linear-gradient(135deg, var(--green), #00a846);
+    background: linear-gradient(180deg, #22c55e, #16a34a);
     color: white;
-    box-shadow: 0 4px 18px rgba(0, 200, 83, 0.35);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.25),
+        0 4px 18px rgba(0, 200, 83, 0.35);
 }
 .avi-action-bet:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 6px 24px var(--green-glow);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.25),
+        0 6px 24px var(--green-glow);
 }
 .avi-action-bet:disabled {
     background: #374151;
@@ -816,19 +901,23 @@ button { font-family: inherit; }
 }
 
 .avi-action-cashout {
-    background: linear-gradient(135deg, var(--yellow), var(--amber));
+    background: linear-gradient(180deg, var(--yellow), var(--amber));
     color: #1a1a1a;
-    box-shadow: 0 4px 18px rgba(251, 191, 36, 0.4);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        0 4px 18px rgba(251, 191, 36, 0.4);
     animation: pulseYellow 1.5s infinite;
 }
 .avi-action-cashout:hover:not(:disabled) {
     transform: translateY(-1px);
     animation: none;
-    box-shadow: 0 8px 26px rgba(251, 191, 36, 0.65);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        0 8px 26px rgba(251, 191, 36, 0.65);
 }
 @keyframes pulseYellow {
-    0%, 100% { box-shadow: 0 4px 18px rgba(251, 191, 36, 0.4); }
-    50% { box-shadow: 0 4px 28px rgba(251, 191, 36, 0.7); }
+    0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 18px rgba(251, 191, 36, 0.4); }
+    50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 28px rgba(251, 191, 36, 0.7); }
 }
 
 .avi-action-waiting {
@@ -1354,12 +1443,14 @@ button { font-family: inherit; }
 
     /* Header compact */
     .avi-header-inner { padding: 0 10px; gap: 6px; }
-    .avi-back { width: 32px; height: 32px; }
-    .avi-back i { font-size: 14px; }
-    .avi-logo { font-size: 15px; }
+    .avi-back { height: 32px; padding: 0 10px; gap: 4px; }
+    .avi-back i { font-size: 13px; }
+    .avi-back span { font-size: 12px; }
+    .avi-logo { font-size: 18px; }
     .avi-game-tag { display: none; }
     .avi-quick-nav { display: none; }
-    .avi-balance-chip { padding: 6px 10px; font-size: 12px; }
+    .avi-balance-chip { padding: 6px 8px; font-size: 14px; }
+    .avi-currency { font-size: 10px; }
     .avi-icon-btn { height: 32px; min-width: 32px; padding: 0 8px; font-size: 12px; }
     .avi-icon-label { display: none; }
     .avi-desktop-only { display: none !important; }
@@ -1396,8 +1487,8 @@ button { font-family: inherit; }
 
     /* Canvas */
     .avi-canvas-wrap { height: 280px; border-radius: 12px; }
-    .avi-multiplier { font-size: 64px; }
-    .avi-multiplier span { font-size: 32px; }
+    .avi-multiplier { font-size: 72px; }
+    .avi-multiplier span { font-size: 36px; }
     .avi-status-badge { font-size: 10px; padding: 4px 12px; }
 
     /* Bet panels stack */
@@ -1420,10 +1511,11 @@ button { font-family: inherit; }
     /* Jackpot */
     .avi-jackpot { padding: 8px 12px; }
     .avi-jackpot-text { font-size: 11px; }
-    .avi-live-label { font-size: 9px; }
+    .avi-live-label { font-size: 10px; }
 
     /* History strip */
-    .avi-history-chip { font-size: 10px; padding: 4px 10px; }
+    .avi-history-strip { gap: 12px; padding: 4px 2px; }
+    .avi-history-chip { font-size: 12px; }
 
     /* Toast above bottom nav */
     .avi-toast { bottom: 76px; font-size: 12px; padding: 10px 16px; }
@@ -1433,13 +1525,12 @@ button { font-family: inherit; }
    RESPONSIVE — SMALL MOBILE
    ============================================ */
 @media (max-width: 480px) {
-    .avi-balance-chip { font-size: 11px; padding: 5px 8px; }
-    .avi-balance-chip i { display: none; }
+    .avi-balance-chip { font-size: 13px; padding: 5px 6px; }
     .avi-icon-btn { height: 30px; min-width: 30px; padding: 0 6px; font-size: 11px; }
 
     .avi-canvas-wrap { height: 240px; }
-    .avi-multiplier { font-size: 52px; }
-    .avi-multiplier span { font-size: 26px; }
+    .avi-multiplier { font-size: 56px; }
+    .avi-multiplier span { font-size: 28px; }
 
     .avi-bet-panel { padding: 8px; }
     .avi-bet-tab { font-size: 11px; padding: 5px; }
