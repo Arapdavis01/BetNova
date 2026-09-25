@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BetNova Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #0a0e1a; color: white; font-family: 'Inter', sans-serif; }
+        .card { background: #0f1420; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 20px; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-7xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-black">BetNova Admin</h1>
+            <button onclick="logout()" class="text-sm text-gray-400 hover:text-red-400">Logout</button>
+        </div>
+
+        <div id="login-screen" class="card max-w-md mx-auto mt-20">
+            <h2 class="text-xl font-bold mb-4">Admin Login</h2>
+            <input id="admin-token" type="password" placeholder="Admin token" 
+                   class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 mb-3 text-white">
+            <button onclick="login()" class="w-full bg-red-600 hover:bg-red-700 py-2 rounded font-bold">Enter</button>
+        </div>
+
+        <div id="dashboard" class="hidden">
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="card">
+                    <p class="text-xs text-gray-400">Total Users</p>
+                    <p id="stat-users" class="text-3xl font-black text-white mt-1">—</p>
+                </div>
+                <div class="card">
+                    <p class="text-xs text-gray-400">Active 24h</p>
+                    <p id="stat-active" class="text-3xl font-black text-green-400 mt-1">—</p>
+                </div>
+                <div class="card">
+                    <p class="text-xs text-gray-400">Wagered 24h</p>
+                    <p id="stat-wagered" class="text-3xl font-black text-white mt-1">—</p>
+                </div>
+                <div class="card">
+                    <p class="text-xs text-gray-400">House Profit 24h</p>
+                    <p id="stat-profit" class="text-3xl font-black text-green-400 mt-1">—</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="card">
+                    <p class="text-xs text-gray-400">Deposits 24h</p>
+                    <p id="stat-deposits" class="text-2xl font-black text-white mt-1">—</p>
+                </div>
+                <div class="card">
+                    <p class="text-xs text-gray-400">Withdrawals 24h</p>
+                    <p id="stat-withdrawals" class="text-2xl font-black text-white mt-1">—</p>
+                </div>
+            </div>
+
+            <div class="card mb-6">
+                <h2 class="font-bold mb-3">Recent Rounds</h2>
+                <div id="rounds-list" class="text-sm font-mono">Loading...</div>
+            </div>
+
+            <div class="card">
+                <h2 class="font-bold mb-3">Audit Log</h2>
+                <div id="audit-list" class="text-xs max-h-96 overflow-y-auto">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ADMIN_TOKEN = localStorage.getItem('admin_token') || '';
+        const API = window.location.origin;
+
+        function login() {
+            ADMIN_TOKEN = document.getElementById('admin-token').value;
+            localStorage.setItem('admin_token', ADMIN_TOKEN);
+            loadDashboard();
+        }
+
+        function logout() {
+            localStorage.removeItem('admin_token');
+            location.reload();
+        }
+
+        async function fetchAdmin(path) {
+            const res = await fetch(`${API}/api/admin${path}`, {
+                headers: { 'X-Admin-Token': ADMIN_TOKEN }
+            });
+            if (!res.ok) throw new Error(await res.text());
+            return res.json();
+        }
+
+        async function loadDashboard() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+
+            try {
+                const stats = await fetchAdmin('/stats');
+                document.getElementById('stat-users').innerText = stats.users.total;
+                document.getElementById('stat-active').innerText = stats.users.active24h;
+                document.getElementById('stat-wagered').innerText = `KES ${stats.bets24h.wagered.toLocaleString()}`;
+                document.getElementById('stat-profit').innerText = `KES ${stats.bets24h.houseProfit.toLocaleString()}`;
+                document.getElementById('stat-deposits').innerText = `${stats.deposits24h.count} · KES ${stats.deposits24h.total.toLocaleString()}`;
+                document.getElementById('stat-withdrawals').innerText = `${stats.withdrawals24h.count} · KES ${stats.withdrawals24h.total.toLocaleString()}`;
+
+                const rounds = await fetchAdmin('/rounds?limit=20');
+                document.getElementById('rounds-list').innerHTML = rounds.map(r => `
+                    <div class="flex justify-between py-1 border-b border-white/5">
+                        <span>#${r.roundId}</span>
+                        <span class="text-yellow-400">${r.crashPoint?.toFixed(2)}x</span>
+                        <span class="text-gray-500">${new Date(r.createdAt).toLocaleTimeString()}</span>
+                    </div>
+                `).join('');
+
+                const audit = await fetchAdmin('/audit?limit=50');
+                document.getElementById('audit-list').innerHTML = audit.map(a => `
+                    <div class="flex justify-between py-1 border-b border-white/5">
+                        <span class="text-red-400">${a.action}</span>
+                        <span class="text-gray-300">${a.username || 'system'}</span>
+                        <span class="text-gray-500">${new Date(a.createdAt).toLocaleString()}</span>
+                    </div>
+                `).join('');
+            } catch (err) {
+                alert('Admin auth failed');
+                localStorage.removeItem('admin_token');
+                location.reload();
+            }
+        }
+
+        if (ADMIN_TOKEN) loadDashboard();
+    </script>
+</body>
+</html>
