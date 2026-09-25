@@ -6,10 +6,15 @@
     <meta name="theme-color" content="#0a0e1a">
     <title>Soccer Betting — BetNova</title>
     <meta name="description" content="Bet on EPL, La Liga, Champions League and more. Instant M-Pesa deposits.">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Shared shell styles FIRST, then page styles override -->
+    <link rel="stylesheet" href="/shell.css">
     <link rel="stylesheet" href="/sports/sports.css">
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -57,6 +62,49 @@
                 <i class="fa-solid fa-list-check"></i>
                 <span class="spo-betslip-count" id="betslip-count">0</span>
             </button>
+
+            <!-- Anonymous sign-in / sign-up (shell.js manages visibility) -->
+            <div id="shell-auth-zone" class="shell-auth-zone" style="display:none;">
+                <button class="shell-btn shell-btn-ghost" onclick="openModal('signin-modal')">Login</button>
+                <button class="shell-btn shell-btn-green" onclick="openModal('signup-modal')">Register</button>
+            </div>
+
+            <!-- Logged-in zone (shell.js reveals this) -->
+            <div id="shell-user-zone" class="shell-user-zone hidden">
+                <div class="shell-user-menu-wrap">
+                    <button class="shell-avatar" id="shell-avatar" onclick="toggleUserMenu()">U</button>
+                    <div class="shell-user-menu hidden" id="shell-user-menu">
+                        <div class="shell-user-menu-header">
+                            <p class="shell-user-menu-label">Signed in as</p>
+                            <p id="shell-username" class="shell-user-menu-name">User</p>
+                        </div>
+                        <button class="shell-user-menu-item" onclick="location.href='/cashier'">
+                            <i class="fa-solid fa-wallet"></i> Cashier
+                        </button>
+                        <button class="shell-user-menu-item" onclick="openModal('deposit-modal')">
+                            <i class="fa-solid fa-credit-card"></i> Deposit
+                        </button>
+                        <button class="shell-user-menu-item" onclick="openModal('withdraw-modal')">
+                            <i class="fa-solid fa-money-bill-transfer"></i> Withdraw
+                        </button>
+                        <button class="shell-user-menu-item" onclick="openMyBets()">
+                            <i class="fa-solid fa-clock-rotate-left"></i> My Bets
+                        </button>
+                        <button class="shell-user-menu-item" onclick="toggleBetSlip()">
+                            <i class="fa-solid fa-list-check"></i> Bet Slip
+                        </button>
+                        <button class="shell-user-menu-item" onclick="openModal('responsible-modal')">
+                            <i class="fa-solid fa-shield-halved"></i> Responsible Gambling
+                        </button>
+                        <button class="shell-user-menu-item" onclick="openModal('kyc-modal')">
+                            <i class="fa-solid fa-envelope"></i> Verify Email
+                        </button>
+                        <button class="shell-user-menu-item shell-user-menu-item-danger" onclick="handleLogout()">
+                            <i class="fa-solid fa-right-from-bracket"></i> Log Out
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </header>
@@ -152,7 +200,7 @@
         </div>
     </section>
 
-    <!-- ============ RIGHT: BET SLIP ============ -->
+    <!-- ============ RIGHT: BET SLIP (page-local sidebar) ============ -->
     <aside class="spo-betslip" id="betslip">
         <div class="spo-betslip-header">
             <h3>
@@ -163,7 +211,7 @@
                 <button class="spo-betslip-close" onclick="toggleBetSlip()" aria-label="Close">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
-                <button class="spo-betslip-clear" onclick="clearBetSlip()">Clear</button>
+                <button class="spo-betslip-clear" onclick="sportsClearBetSlip()">Clear</button>
             </div>
         </div>
 
@@ -251,7 +299,7 @@
 </nav>
 
 <!-- ============================================ -->
-<!-- MY BETS MODAL -->
+<!-- MY BETS MODAL (page-local) -->
 <!-- ============================================ -->
 <div id="mybets-modal" class="spo-modal hidden">
     <div class="spo-modal-card spo-modal-wide">
@@ -268,9 +316,191 @@
 </div>
 
 <!-- ============================================ -->
+<!-- SHARED SHELL MODALS (shell.js expects these) -->
+<!-- ============================================ -->
+<div id="signin-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('signin-modal')">&times;</button>
+        <h3>Welcome Back</h3>
+        <p>Sign in to continue</p>
+        <form onsubmit="handleAuth(event, 'signin')">
+            <input id="signin-user" type="text" placeholder="Username" required class="shell-input">
+            <input id="signin-pass" type="password" placeholder="Password" required class="shell-input">
+            <button type="submit" class="shell-btn shell-btn-green shell-btn-full">Sign In</button>
+        </form>
+        <p class="shell-modal-footer">
+            No account? <a href="#" onclick="closeModal('signin-modal'); openModal('signup-modal'); return false;">Create one</a>
+        </p>
+    </div>
+</div>
+
+<div id="signup-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('signup-modal')">&times;</button>
+        <h3>Create Account</h3>
+        <p>Join thousands of players</p>
+        <form onsubmit="handleAuth(event, 'signup')">
+            <input id="signup-user" type="text" placeholder="Username (min 3 chars)" required minlength="3" class="shell-input">
+            <input id="signup-pass" type="password" placeholder="Password (min 4 chars)" required minlength="4" class="shell-input">
+            <label class="shell-checkbox">
+                <input type="checkbox" required>
+                <span>I am 18+ and accept the Terms of Service</span>
+            </label>
+            <button type="submit" class="shell-btn shell-btn-green shell-btn-full">Create Account</button>
+        </form>
+    </div>
+</div>
+
+<div id="deposit-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('deposit-modal')">&times;</button>
+        <h3>Deposit Funds</h3>
+        <p>Instant M-Pesa STK Push</p>
+        <label class="shell-input-label">Amount (KES)</label>
+        <input type="number" id="deposit-amount" value="100" min="10" max="150000" step="10" class="shell-input">
+        <label class="shell-input-label">M-Pesa Phone Number</label>
+        <input type="tel" id="deposit-phone" placeholder="0712345678" class="shell-input">
+        <button onclick="handleDeposit()" class="shell-btn shell-btn-green shell-btn-full">Send M-Pesa Request</button>
+    </div>
+</div>
+
+<div id="withdraw-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('withdraw-modal')">&times;</button>
+        <h3>Withdraw Funds</h3>
+        <p>Sent to M-Pesa within minutes</p>
+        <label class="shell-input-label">Amount (KES)</label>
+        <input type="number" id="withdraw-amount" value="100" min="50" step="10" class="shell-input">
+        <label class="shell-input-label">M-Pesa Phone Number</label>
+        <input type="tel" id="withdraw-phone" placeholder="0712345678" class="shell-input">
+        <button onclick="handleWithdraw()" class="shell-btn shell-btn-green shell-btn-full">Withdraw to M-Pesa</button>
+    </div>
+</div>
+
+<div id="history-modal" class="shell-modal hidden">
+    <div class="shell-modal-card shell-modal-wide">
+        <button class="shell-modal-close" onclick="closeModal('history-modal')">&times;</button>
+        <h3>My Bets</h3>
+        <div id="history-list" class="shell-history-list">Loading...</div>
+    </div>
+</div>
+
+<div id="responsible-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('responsible-modal')">&times;</button>
+        <h3>Responsible Gambling</h3>
+        <p>Set your daily limits</p>
+        <label class="shell-input-label">Daily Deposit Limit (KES)</label>
+        <input type="number" id="limit-deposit" placeholder="e.g., 5000" min="0" class="shell-input">
+        <label class="shell-input-label">Daily Wager Limit (KES)</label>
+        <input type="number" id="limit-wager" placeholder="e.g., 10000" min="0" class="shell-input">
+        <button onclick="saveLimits()" class="shell-btn shell-btn-green shell-btn-full">Save Limits</button>
+    </div>
+</div>
+
+<div id="kyc-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('kyc-modal')">&times;</button>
+        <h3>Verify Email</h3>
+        <p>Required for withdrawals</p>
+        <div id="kyc-step-1">
+            <label class="shell-input-label">Email Address</label>
+            <input type="email" id="kyc-email" placeholder="you@example.com" class="shell-input">
+            <button onclick="sendOTP()" class="shell-btn shell-btn-green shell-btn-full">Send Code</button>
+        </div>
+        <div id="kyc-step-2" class="hidden">
+            <label class="shell-input-label">6-digit Code</label>
+            <input type="text" id="kyc-code" maxlength="6" placeholder="123456" class="shell-input shell-input-code">
+            <button onclick="verifyOTP()" class="shell-btn shell-btn-green shell-btn-full">Verify</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SHARED BET SLIP DRAWER (shell.js renders into this) -->
+<!-- ============================================ -->
+<aside class="shell-betslip-drawer" id="betslip-drawer" aria-hidden="true">
+    <div class="shell-betslip-drawer-overlay" onclick="closeBetslipDrawer()"></div>
+    <div class="shell-betslip-drawer-panel">
+        <div class="shell-betslip-drawer-header">
+            <h3>
+                <i class="fa-solid fa-list-check"></i> Bet Slip
+                <span class="shell-betslip-count-badge" id="betslip-drawer-count">0</span>
+            </h3>
+            <div class="shell-betslip-drawer-actions">
+                <button class="shell-betslip-clear" onclick="sportsClearBetSlip()">Clear</button>
+                <button class="shell-betslip-close" onclick="closeBetslipDrawer()" aria-label="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+        <div class="shell-betslip-drawer-body" id="betslip-drawer-body">
+            <div class="shell-betslip-empty">
+                <i class="fa-solid fa-ticket"></i>
+                <p>Click on odds to add selections</p>
+                <span>Combine picks for bigger odds</span>
+            </div>
+        </div>
+        <div class="shell-betslip-drawer-footer" id="betslip-drawer-footer" style="display:none;">
+            <div class="shell-betslip-summary">
+                <span>Total Odds</span>
+                <strong id="betslip-drawer-total-odds">1.00</strong>
+            </div>
+            <div class="shell-betslip-summary">
+                <span>Selections</span>
+                <strong id="betslip-drawer-selections">0</strong>
+            </div>
+            <div class="shell-betslip-summary shell-betslip-payout">
+                <span>Potential Payout</span>
+                <strong id="betslip-drawer-payout" class="shell-green">KES 0.00</strong>
+            </div>
+            <div class="shell-betslip-stake">
+                <label for="betslip-drawer-stake">Stake (KES)</label>
+                <div class="shell-betslip-stake-wrap">
+                    <button onclick="adjustStake(-50)" aria-label="Decrease">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <input type="number" id="betslip-drawer-stake" value="100" min="10" step="10"
+                           inputmode="numeric" oninput="recalcBetSlip()">
+                    <button onclick="adjustStake(50)" aria-label="Increase">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="shell-betslip-chips">
+                <button onclick="setStake(50)">50</button>
+                <button onclick="setStake(100)">100</button>
+                <button onclick="setStake(250)">250</button>
+                <button onclick="setStake(500)">500</button>
+                <button onclick="setStake(1000)">1K</button>
+            </div>
+            <button class="shell-betslip-place-btn" id="betslip-drawer-place" onclick="placeBet()">
+                <i class="fa-solid fa-bolt"></i> Place Bet
+            </button>
+        </div>
+    </div>
+</aside>
+
+<!-- ============================================ -->
 <!-- TOAST -->
 <!-- ============================================ -->
-<div id="toast" class="spo-toast hidden"></div>
+<div id="toast" class="shell-toast hidden"></div>
+
+<!-- ============================================ -->
+<!-- SCRIPTS — shell.js MUST load before sports.js -->
+<!-- ============================================ -->
+<script src="/shell.js"></script>
+
+<script>
+// Sanity check: warn loudly if shell.js failed
+(function () {
+    if (!window.BetNova || !window.BetNova.socket) {
+        console.warn('[Soccer] shell.js did not expose BetNova.socket — betting will still work but live balance updates may be delayed.');
+    } else {
+        console.log('[Soccer] shell.js loaded, BetNova ready.');
+    }
+})();
+</script>
 
 <script src="/sports/sports.js"></script>
 </body>
