@@ -1,6 +1,6 @@
 // ============================================
 // BetNova — Sports Betting Client
-// Grouped matches, date filters, mobile drawers, correct odds math
+// Client-side date bounds · Live tab · Correct odds math
 // ============================================
 
 const API_BASE = (() => {
@@ -22,17 +22,17 @@ const socket = io(API_BASE || undefined, {
 // STATE
 // ============================================
 let currentUser = null;
-let currentSport = null;         // Single league key (e.g., soccer_epl)
-let currentGroup = null;         // Sport group (e.g., Soccer)
-let currentDateRange = 'today';  // today | tomorrow | week | all
-let currentSearch = '';          // Team search term
-let matches = [];                // All currently loaded matches (flat)
-let groupedMatches = [];         // [{ sportKey, sportTitle, country, matches: [] }]
-let betSlip = [];                // [{ matchExternalId, homeTeam, awayTeam, sportTitle, commenceTime, pick, odds }]
-let collapsedLeagues = {};       // { sportKey: true/false }
+let currentSport = null;
+let currentGroup = null;
+let currentDateRange = 'today';   // today | tomorrow | week | all | live
+let currentSearch = '';
+let matches = [];
+let groupedMatches = [];
+let betSlip = [];
+let collapsedLeagues = {};
 let searchDebounceTimer = null;
 
-// Country flags (emoji)
+// Country flags
 const COUNTRY_FLAGS = {
     'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
     'Spain': '🇪🇸',
@@ -77,6 +77,38 @@ function showToast(msg, type = 'info', duration = 3000) {
     t.classList.remove('hidden');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.add('hidden'), duration);
+}
+
+/**
+ * Compute the ISO timestamp bounds for a given date range.
+ * This runs on the CLIENT so the timezone is the user's local time.
+ */
+function getDateRangeBounds(range) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (range) {
+        case 'today': {
+            const end = new Date(today);
+            end.setDate(end.getDate() + 1);
+            return { from: today, to: end };
+        }
+        case 'tomorrow': {
+            const start = new Date(today);
+            start.setDate(start.getDate() + 1);
+            const end = new Date(start);
+            end.setDate(end.getDate() + 1);
+            return { from: start, to: end };
+        }
+        case 'week': {
+            const end = new Date(today);
+            end.setDate(end.getDate() + 7);
+            return { from: today, to: end };
+        }
+        case 'all':
+        default:
+            return { from: null, to: null };
+    }
 }
 
 function formatMatchTime(iso) {
@@ -158,9 +190,7 @@ function setSportGroup(group) {
     document.querySelectorAll('.spo-sport-chip').forEach(c => {
         c.classList.toggle('active', c.dataset.group === group);
     });
-    // Clear sidebar active state
     document.querySelectorAll('.spo-sport-item').forEach(b => b.classList.remove('active'));
-    // Close sidebar on mobile if open
     if (window.innerWidth <= 900) toggleSidebar();
     loadMatches();
 }
@@ -178,7 +208,7 @@ function toggleSidebar() {
 }
 
 // ============================================
-// BET SLIP DRAWER (mobile)
+// BET SLIP DRAWER
 // ============================================
 function toggleBetSlip() {
     const betslip = document.getElementById('betslip');
@@ -190,7 +220,7 @@ function toggleBetSlip() {
 }
 
 // ============================================
-// DEBOUNCED SEARCH
+// SEARCH
 // ============================================
 function debouncedFilter() {
     clearTimeout(searchDebounceTimer);
@@ -218,7 +248,7 @@ function filterLeagues() {
 }
 
 // ============================================
-// LOAD SPORTS (sidebar)
+// LOAD LEAGUES (sidebar)
 // ============================================
 async function loadSports() {
     const container = document.getElementById('sports-list');
@@ -237,7 +267,6 @@ async function loadSports() {
             return;
         }
 
-        // Group leagues by sportGroup
         const grouped = {};
         data.leagues.forEach(l => {
             if (!grouped[l.sportGroup]) grouped[l.sportGroup] = [];
@@ -265,7 +294,6 @@ async function loadSports() {
 
         container.innerHTML = html;
 
-        // Attach click handlers
         container.querySelectorAll('.spo-sport-item').forEach(btn => {
             btn.addEventListener('click', () => {
                 container.querySelectorAll('.spo-sport-item').forEach(b => b.classList.remove('active'));
@@ -274,9 +302,7 @@ async function loadSports() {
                 currentSport = btn.dataset.sport;
                 currentGroup = btn.dataset.group;
 
-                // Close mobile sidebar
                 if (window.innerWidth <= 900) toggleSidebar();
-
                 loadMatches();
             });
         });
@@ -291,7 +317,7 @@ async function loadSports() {
 }
 
 // ============================================
-// LOAD MATCHES
+// LOAD MATCHES — sends ISO from/to, handles live
 // ============================================
 async function loadMatches() {
     const container = document.getElementById('matches-list');
@@ -307,8 +333,18 @@ async function loadMatches() {
         const params = new URLSearchParams();
         if (currentSport) params.set('sport', currentSport);
         else if (currentGroup) params.set('group', currentGroup);
-        params.set('status', 'upcoming');
-        params.set('range', currentDateRange);
+
+        if (currentDateRange === 'live') {
+            params.set('status', 'live');
+        } else {
+            params.set('status', 'upcoming');
+            if (currentDateRange !== 'all') {
+                const { from, to } = getDateRangeBounds(currentDateRange);
+                if (from) params.set('from', from.toISOString());
+                if (to) params.set('to', to.toISOString());
+            }
+        }
+
         params.set('limit', '300');
         params.set('format', 'grouped');
         if (currentSearch && currentSearch.length >= 2) {
@@ -327,13 +363,14 @@ async function loadMatches() {
                     <i class="fa-solid fa-futbol"></i>
                     <h3>No matches found</h3>
                     <p>${currentSearch ? 'Try a different team name' : 'Try a different date filter'}</p>
+                    ${currentDateRange === 'live' ? '<p class="spo-live-hint">No matches are live right now</p>' : ''}
                 </div>`;
             return;
         }
 
         container.innerHTML = groupedMatches.map(g => renderLeagueSection(g)).join('');
 
-        // Attach league collapse handlers
+        // League collapse
         container.querySelectorAll('.spo-league-header').forEach(header => {
             header.addEventListener('click', () => {
                 const section = header.closest('.spo-league-section');
@@ -344,7 +381,7 @@ async function loadMatches() {
             });
         });
 
-        // Attach odd button handlers
+        // Odd button handlers
         container.querySelectorAll('.spo-odd-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -354,10 +391,9 @@ async function loadMatches() {
             });
         });
 
-        // Re-apply selected state
         refreshOddHighlights();
 
-        // Apply any previously-collapsed leagues
+        // Restore collapsed state
         container.querySelectorAll('.spo-league-section').forEach(section => {
             if (collapsedLeagues[section.dataset.league]) {
                 section.classList.add('collapsed');
@@ -409,12 +445,17 @@ function renderMatch(m) {
         s.matchExternalId === m.externalId && s.pick === pick
     );
 
+    // Live indicator
+    const isLive = new Date(m.commenceTime) <= new Date();
+    const timeDisplay = isLive
+        ? `<span class="spo-time-live"><i class="fa-solid fa-circle"></i> LIVE</span>`
+        : `<i class="fa-regular fa-clock"></i> ${formatMatchTime(m.commenceTime)}`;
+
     return `
         <div class="spo-match" data-match="${escapeHtml(m.externalId)}">
             <div class="spo-match-info">
                 <div class="spo-match-time">
-                    <i class="fa-regular fa-clock"></i>
-                    ${formatMatchTime(m.commenceTime)}
+                    ${timeDisplay}
                 </div>
                 <div class="spo-match-teams">
                     <div class="spo-match-team">${escapeHtml(m.homeTeam)}</div>
@@ -462,11 +503,9 @@ function toggleSelection(matchExternalId, pick) {
 
     if (existingIdx >= 0) {
         if (betSlip[existingIdx].pick === pick) {
-            // Toggle off — user clicked the same pick
             betSlip.splice(existingIdx, 1);
             showToast('Removed from bet slip', 'info', 1500);
         } else {
-            // Replace pick — user clicked a different outcome
             betSlip[existingIdx] = {
                 matchExternalId,
                 homeTeam: match.homeTeam,
@@ -577,11 +616,11 @@ function updateBetslipCount() {
 }
 
 // ============================================
-// BET SLIP — Recalculate
+// BET SLIP — Recalculate (odds MULTIPLIED)
 // ============================================
 function recalcBetSlip() {
-    // ⭐ CRITICAL: total odds = MULTIPLY all selection odds together
-    // Example: 1.20 × 10.30 = 12.36
+    // ⭐ Total odds = MULTIPLY all selection odds
+    // 1.20 × 10.30 = 12.36
     const totalOdds = betSlip.reduce((acc, s) => acc * s.odds, 1);
 
     const stakeInput = document.getElementById('betslip-stake');
@@ -664,7 +703,6 @@ async function placeBet() {
             return;
         }
 
-        // Update balance
         localStorage.setItem('betnova_balance', data.newBalance);
         const balEl = document.getElementById('balance-display');
         if (balEl) balEl.innerText = formatKES(data.newBalance);
@@ -677,7 +715,6 @@ async function placeBet() {
 
         clearBetSlip();
 
-        // Close mobile drawer
         if (window.innerWidth <= 900) {
             const betslip = document.getElementById('betslip');
             const overlay = document.getElementById('betslip-overlay');
@@ -794,7 +831,6 @@ socket.on('balance_update', (balance) => {
 // ============================================
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        // Close modals and drawers
         document.getElementById('mybets-modal')?.classList.add('hidden');
         document.getElementById('sports-sidebar')?.classList.remove('mobile-open');
         document.getElementById('sidebar-overlay')?.classList.add('hidden');
@@ -813,10 +849,8 @@ document.addEventListener('DOMContentLoaded', () => {
     renderBetSlip();
     updateBetslipCount();
 
-    // Periodic balance refresh
     setInterval(refreshBalance, 15000);
 
-    // Auto-refresh matches every 60s
     setInterval(() => {
         if (!document.hidden) loadMatches();
     }, 60000);
