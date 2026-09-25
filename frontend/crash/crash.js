@@ -2,6 +2,7 @@
 // BetNova — Crash Game Client
 // Reuses Aviator socket backend 100%
 // Rising-bar visual + smooth multiplier
+// Session sync with shell.js via BetNova.user
 // ============================================
 
 const API_BASE = (() => {
@@ -232,24 +233,49 @@ function showToast(msg, type = 'info', duration = 3000) {
 }
 
 // ============================================
-// SESSION
+// SESSION — reads from BetNova (shell.js) first, then localStorage
 // ============================================
-function checkSession() {
+function readSession() {
+    // 1. Prefer shell.js session (authoritative — it manages login)
+    const nova = window.BetNova;
+    if (nova && nova.user && nova.user.userId && nova.user.username) {
+        return {
+            userId: nova.user.userId,
+            username: nova.user.username
+        };
+    }
+
+    // 2. Fallback to localStorage — require token as proof of a real session
     const user = localStorage.getItem('betnova_user');
     const userId = localStorage.getItem('betnova_userid');
-    const balance = localStorage.getItem('betnova_balance');
+    const token = localStorage.getItem('betnova_token');
 
-    if (user && userId) {
-        currentUser = { userId, username: user };
-        document.getElementById('game-lock')?.classList.add('hidden');
+    if (user && userId && token) {
+        return { userId, username: user };
+    }
+
+    return null;
+}
+
+function checkSession() {
+    const session = readSession();
+    const lock = document.getElementById('game-lock');
+
+    if (session) {
+        currentUser = session;
+        lock?.classList.add('hidden');
+
+        const balance = localStorage.getItem('betnova_balance') || '0';
         const balEl = document.getElementById('balance-display');
-        if (balEl) balEl.innerText = formatKES(balance || 0);
+        if (balEl) balEl.innerText = formatKES(balance);
+
         refreshBalance();
-        socket.emit('chat_join', { username: user });
+        socket.emit('chat_join', { username: session.username });
     } else {
         currentUser = null;
-        document.getElementById('game-lock')?.classList.remove('hidden');
+        lock?.classList.remove('hidden');
     }
+
     updateActionButton(1);
     updateActionButton(2);
 }
@@ -378,7 +404,12 @@ function applyButtonState(btn, className, disabled, title, subtext) {
 // ============================================
 function handleBetAction(panel) {
     if (!currentUser) {
-        showToast('Sign in to place bets', 'error');
+        // Delegate to shell.js sign-in prompt (opens modal, restores action)
+        if (window.BetNova && typeof window.BetNova.requireAuth === 'function') {
+            window.BetNova.requireAuth(() => handleBetAction(panel), 'Sign in to place your bet');
+        } else {
+            showToast('Sign in to place bets', 'error');
+        }
         return;
     }
     const bet = myBets[panel];
@@ -462,7 +493,6 @@ function updateMultiplierDisplay() {
         el.style.color = '#ffffff';
         el.classList.remove('crashed');
         if (fill) {
-            // Bar fills logarithmically toward 100x
             const pct = Math.min(100, (Math.log(displayMultiplier) / Math.log(100)) * 100);
             fill.style.width = `${pct}%`;
             fill.classList.remove('crashed');
@@ -544,7 +574,6 @@ socket.on('betnova_tick', (state) => {
 
         if (badge) badge.innerText = 'Rising — cash out before crash';
 
-        // Auto-cashout
         [1, 2].forEach(panel => {
             const bet = myBets[panel];
             if (bet && !bet.cashedOut) {
@@ -569,7 +598,6 @@ socket.on('betnova_tick', (state) => {
 
         if (badge) badge.innerText = 'CRASHED!';
 
-        // Flash overlay
         const flash = document.getElementById('crash-flash');
         if (flash) {
             flash.classList.remove('active');
@@ -682,7 +710,6 @@ socket.on('round_commit', (data) => {
 });
 
 socket.on('round_reveal', (data) => {
-    // Optional: could show verification modal here
     console.log('[Crash] Round reveal:', data);
 });
 
@@ -822,7 +849,7 @@ async function handleWithdraw() {
 }
 
 // ============================================
-// CANVAS — Rising bar / curve visualization
+// CANVAS — Rising bar visualization
 // ============================================
 function clearCanvas() {
     if (!ctx) return;
@@ -838,7 +865,6 @@ function render(multiplier, crashed) {
     const baseY = H - padB;
     const topY = padT;
 
-    // ---------- Grid ----------
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
     for (let i = 1; i < 6; i++) {
@@ -849,13 +875,11 @@ function render(multiplier, crashed) {
         ctx.stroke();
     }
 
-    // ---------- Bars ----------
     const safeMul = Math.max(1.001, multiplier);
     const BAR_COUNT = 30;
     const spacing = (W - padL - padR) / BAR_COUNT;
     const barWidth = spacing * 0.75;
 
-    // Number of bars "filled" grows logarithmically with multiplier
     const filled = Math.min(BAR_COUNT, Math.max(1, Math.round(
         Math.log(safeMul) / Math.log(100) * BAR_COUNT
     )));
@@ -864,20 +888,16 @@ function render(multiplier, crashed) {
         const x = padL + i * spacing;
         const t = i / BAR_COUNT;
 
-        // Bar height grows as we approach the current multiplier
         let heightRatio;
         if (i < filled) {
-            // Filled bar: full height scaled by position
             heightRatio = 0.15 + Math.pow((i + 1) / BAR_COUNT, 1.4) * 0.85;
         } else {
-            // Future bar: minimal
             heightRatio = 0.04;
         }
 
         const barH = (baseY - topY) * heightRatio;
         const y = baseY - barH;
 
-        // Color: gradient from orange (low) to red (high), red if crashed
         let color;
         if (crashed) {
             color = i < filled ? 'rgba(239,68,68,0.9)' : 'rgba(239,68,68,0.15)';
@@ -890,7 +910,6 @@ function render(multiplier, crashed) {
 
         ctx.fillStyle = color;
 
-        // Rounded top bar
         const radius = Math.min(barWidth / 2, 4);
         ctx.beginPath();
         ctx.moveTo(x, y + radius);
@@ -905,7 +924,6 @@ function render(multiplier, crashed) {
         ctx.closePath();
         ctx.fill();
 
-        // Glow on leading edge
         if (i === filled - 1 && !crashed) {
             ctx.shadowBlur = 20;
             ctx.shadowColor = 'rgba(249,115,22,0.9)';
@@ -914,7 +932,6 @@ function render(multiplier, crashed) {
         }
     }
 
-    // ---------- Leading marker ----------
     if (!crashed) {
         const leadX = padL + Math.min(filled, BAR_COUNT - 1) * spacing + barWidth / 2;
         const leadT = Math.min(filled, BAR_COUNT) / BAR_COUNT;
@@ -929,6 +946,48 @@ function render(multiplier, crashed) {
         ctx.shadowBlur = 0;
     }
 }
+
+// ============================================
+// SESSION SYNC LISTENERS
+// ============================================
+// Re-check session on any visibility change (login in another tab)
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        checkSession();
+        refreshBalance();
+    }
+});
+
+// Re-check when localStorage changes (another tab logs in/out)
+window.addEventListener('storage', (e) => {
+    if (e.key === 'betnova_user' ||
+        e.key === 'betnova_userid' ||
+        e.key === 'betnova_token' ||
+        e.key === 'betnova_balance') {
+        console.log('[Crash] Session storage changed — re-checking');
+        checkSession();
+    }
+});
+
+// Re-check when shell.js fires session change (same-tab login)
+if (window.BetNova && window.BetNova.bus) {
+    try {
+        window.BetNova.bus.addEventListener('session:changed', () => {
+            console.log('[Crash] BetNova session:changed — re-checking');
+            checkSession();
+        });
+    } catch (_) {}
+}
+
+// Also poll a couple of times in the first 3 seconds after load
+// to catch shell.js writing the session slightly after us.
+let earlyPolls = 0;
+const earlyPollTimer = setInterval(() => {
+    earlyPolls++;
+    if (currentUser) { clearInterval(earlyPollTimer); return; }
+    checkSession();
+    if (earlyPolls >= 6) clearInterval(earlyPollTimer);
+}, 500);
 
 // ============================================
 // INIT
