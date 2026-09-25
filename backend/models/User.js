@@ -50,8 +50,7 @@ const UserSchema = new mongoose.Schema({
     phone: {
         type: String,
         default: null,
-        trim: true,
-        index: true
+        trim: true
     },
     phoneVerified: {
         type: Boolean,
@@ -93,8 +92,7 @@ const UserSchema = new mongoose.Schema({
     role: {
         type: String,
         enum: ['user', 'admin'],
-        default: 'user',
-        index: true
+        default: 'user'
     },
 
     // ============================================
@@ -102,7 +100,8 @@ const UserSchema = new mongoose.Schema({
     // ============================================
     lastLoginAt: {
         type: Date,
-        default: null
+        default: null,
+        index: true
     },
     totalDeposited: {
         type: Number,
@@ -121,8 +120,7 @@ const UserSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['active', 'suspended', 'banned'],
-        default: 'active',
-        index: true
+        default: 'active'
     }
 
 }, {
@@ -138,17 +136,16 @@ const UserSchema = new mongoose.Schema({
 });
 
 // ============================================
-// INDEXES
+// COMPOUND INDEXES (only ones that need multiple fields)
 // ============================================
+// Single-field indexes are already declared inline above via `index: true`.
+// Compound indexes go here because Mongoose can't express them on field definitions.
 
-// Fast lookup by username for signin
-UserSchema.index({ username: 1 });
+// Fast lookup for admin dashboard (active users by status + last login)
+UserSchema.index({ status: 1, lastLoginAt: -1 });
 
-// Fast lookup by email for KYC resend
-UserSchema.index({ email: 1 });
-
-// Fast lookup for admin dashboard (active users)
-UserSchema.index({ lastLoginAt: -1 });
+// Fast lookup for user list by role + created date
+UserSchema.index({ role: 1, createdAt: -1 });
 
 // ============================================
 // VIRTUAL FIELDS
