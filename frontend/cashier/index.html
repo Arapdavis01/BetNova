@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cashier — BetNova</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="cashier.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="csh-header">
+    <div class="csh-header-inner">
+        <a href="/" class="csh-back">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span class="csh-logo">
+                <span class="csh-logo-red">Bet</span><span class="csh-logo-white">Nova</span>
+                <span class="csh-logo-sub">Cashier</span>
+            </span>
+        </a>
+        <div class="csh-header-right">
+            <div class="csh-balance-chip">
+                <i class="fa-solid fa-wallet"></i>
+                <span id="balance-display">0.00</span>
+                <span class="csh-currency">KES</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="csh-layout">
+
+    <!-- ============ LEFT: MAIN BALANCE CARD ============ -->
+    <section class="csh-main-card">
+        <div class="csh-balance-block">
+            <p class="csh-balance-label">Main Balance</p>
+            <h2 class="csh-balance-amount" id="main-balance">KES 0.00</h2>
+            <div class="csh-balance-actions">
+                <button onclick="openTab('deposit')" class="csh-btn csh-btn-green">
+                    <i class="fa-solid fa-plus"></i> Deposit
+                </button>
+                <button onclick="openTab('withdraw')" class="csh-btn csh-btn-ghost">
+                    <i class="fa-solid fa-arrow-up-from-bracket"></i> Withdraw
+                </button>
+            </div>
+        </div>
+
+        <div class="csh-bonus-block">
+            <div class="csh-bonus-row">
+                <div>
+                    <p class="csh-bonus-label">Bonus Balance</p>
+                    <p class="csh-bonus-amount" id="bonus-balance">KES 0.00</p>
+                </div>
+                <button onclick="claimDailyBonus()" class="csh-btn csh-btn-yellow" id="daily-bonus-btn">
+                    <i class="fa-solid fa-gift"></i> Daily Bonus
+                </button>
+            </div>
+            <div class="csh-bonus-progress" id="bonus-progress-wrap" style="display:none;">
+                <div class="csh-progress-label">
+                    <span>Wagering progress</span>
+                    <span id="wagering-text">KES 0 / KES 0</span>
+                </div>
+                <div class="csh-progress-bar">
+                    <div class="csh-progress-fill" id="wagering-fill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="csh-stats-row">
+            <div class="csh-stat">
+                <p class="csh-stat-label">Total Deposited</p>
+                <p class="csh-stat-value" id="total-deposited">KES 0</p>
+            </div>
+            <div class="csh-stat">
+                <p class="csh-stat-label">Total Withdrawn</p>
+                <p class="csh-stat-value" id="total-withdrawn">KES 0</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ CENTER: TABS ============ -->
+    <section class="csh-tabs-section">
+        <div class="csh-tabs">
+            <button class="csh-tab active" data-tab="deposit" onclick="openTab('deposit')">
+                <i class="fa-solid fa-plus"></i> Deposit
+            </button>
+            <button class="csh-tab" data-tab="withdraw" onclick="openTab('withdraw')">
+                <i class="fa-solid fa-arrow-up-from-bracket"></i> Withdraw
+            </button>
+            <button class="csh-tab" data-tab="history" onclick="openTab('history')">
+                <i class="fa-solid fa-clock-rotate-left"></i> History
+            </button>
+            <button class="csh-tab" data-tab="referral" onclick="openTab('referral')">
+                <i class="fa-solid fa-user-plus"></i> Refer & Earn
+            </button>
+        </div>
+
+        <!-- Deposit -->
+        <div class="csh-tab-content active" data-content="deposit">
+            <h3>Deposit Funds</h3>
+            <p class="csh-tab-desc">Instant M-Pesa STK Push. Minimum KES 10.</p>
+            <label class="csh-input-label">Amount (KES)</label>
+            <div class="csh-amount-input">
+                <button onclick="adjustAmount('deposit', -50)">−</button>
+                <input type="number" id="deposit-amount" value="100" min="10" step="10">
+                <button onclick="adjustAmount('deposit', 50)">+</button>
+            </div>
+            <div class="csh-quick-amounts">
+                <button onclick="setAmount('deposit', 100)">100</button>
+                <button onclick="setAmount('deposit', 250)">250</button>
+                <button onclick="setAmount('deposit', 500)">500</button>
+                <button onclick="setAmount('deposit', 1000)">1,000</button>
+                <button onclick="setAmount('deposit', 5000)">5,000</button>
+            </div>
+            <label class="csh-input-label">M-Pesa Phone Number</label>
+            <input type="tel" id="deposit-phone" placeholder="0712345678" class="csh-input">
+            <button onclick="handleDeposit()" class="csh-btn csh-btn-green csh-btn-full">
+                <i class="fa-solid fa-bolt"></i> Send M-Pesa Request
+            </button>
+        </div>
+
+        <!-- Withdraw -->
+        <div class="csh-tab-content" data-content="withdraw">
+            <h3>Withdraw Funds</h3>
+            <p class="csh-tab-desc">Sent to M-Pesa within 5 minutes. Minimum KES 50.</p>
+            <label class="csh-input-label">Amount (KES)</label>
+            <div class="csh-amount-input">
+                <button onclick="adjustAmount('withdraw', -50)">−</button>
+                <input type="number" id="withdraw-amount" value="100" min="50" step="10">
+                <button onclick="adjustAmount('withdraw', 50)">+</button>
+            </div>
+            <div class="csh-quick-amounts">
+                <button onclick="setAmount('withdraw', 100)">100</button>
+                <button onclick="setAmount('withdraw', 250)">250</button>
+                <button onclick="setAmount('withdraw', 500)">500</button>
+                <button onclick="setAmount('withdraw', 1000)">1,000</button>
+                <button onclick="setMaxWithdraw()">MAX</button>
+            </div>
+            <label class="csh-input-label">M-Pesa Phone Number</label>
+            <input type="tel" id="withdraw-phone" placeholder="0712345678" class="csh-input">
+            <button onclick="handleWithdraw()" class="csh-btn csh-btn-green csh-btn-full">
+                <i class="fa-solid fa-money-bill-transfer"></i> Withdraw to M-Pesa
+            </button>
+        </div>
+
+        <!-- History -->
+        <div class="csh-tab-content" data-content="history">
+            <h3>Transaction History</h3>
+            <p class="csh-tab-desc">All your deposits, withdrawals, and bets.</p>
+            <div id="history-list" class="csh-history-list">Loading...</div>
+        </div>
+
+        <!-- Referral -->
+        <div class="csh-tab-content" data-content="referral">
+            <h3>Refer & Earn</h3>
+            <p class="csh-tab-desc">Invite friends and earn KES 100 per first deposit.</p>
+
+            <div class="csh-referral-card">
+                <p class="csh-referral-label">Your Referral Code</p>
+                <div class="csh-referral-code-row">
+                    <div class="csh-referral-code" id="referral-code">—</div>
+                    <button onclick="copyReferral()" class="csh-btn csh-btn-ghost">
+                        <i class="fa-solid fa-copy"></i> Copy
+                    </button>
+                </div>
+                <p class="csh-referral-link-label">Share this link</p>
+                <div class="csh-referral-link-row">
+                    <input type="text" id="referral-link" readonly>
+                    <button onclick="shareReferral()" class="csh-btn csh-btn-green">
+                        <i class="fa-solid fa-share-nodes"></i> Share
+                    </button>
+                </div>
+            </div>
+
+            <div class="csh-referral-stats">
+                <div class="csh-stat">
+                    <p class="csh-stat-label">Friends Referred</p>
+                    <p class="csh-stat-value" id="referral-count">0</p>
+                </div>
+                <div class="csh-stat">
+                    <p class="csh-stat-label">Total Earnings</p>
+                    <p class="csh-stat-value csh-green" id="referral-earnings">KES 0</p>
+                </div>
+            </div>
+
+            <h4 class="csh-referral-howto-title">How it works</h4>
+            <div class="csh-howto">
+                <div class="csh-howto-step">
+                    <div class="csh-howto-num">1</div>
+                    <p>Share your code with friends</p>
+                </div>
+                <div class="csh-howto-step">
+                    <div class="csh-howto-num">2</div>
+                    <p>They sign up and use your code</p>
+                </div>
+                <div class="csh-howto-step">
+                    <div class="csh-howto-num">3</div>
+                    <p>They get KES 50 signup bonus</p>
+                </div>
+                <div class="csh-howto-step">
+                    <div class="csh-howto-num">4</div>
+                    <p>You earn KES 100 on their first deposit</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ RIGHT: QUICK ACTIONS ============ -->
+    <aside class="csh-sidebar">
+        <div class="csh-side-card">
+            <h4>Quick Actions</h4>
+            <button onclick="openTab('deposit')" class="csh-side-action">
+                <i class="fa-solid fa-plus"></i> Deposit
+            </button>
+            <button onclick="openTab('withdraw')" class="csh-side-action">
+                <i class="fa-solid fa-arrow-up-from-bracket"></i> Withdraw
+            </button>
+            <button onclick="openTab('history')" class="csh-side-action">
+                <i class="fa-solid fa-clock-rotate-left"></i> History
+            </button>
+            <button onclick="openTab('referral')" class="csh-side-action">
+                <i class="fa-solid fa-user-plus"></i> Refer & Earn
+            </button>
+        </div>
+
+        <div class="csh-side-card csh-side-card-highlight">
+            <h4>Daily Streak</h4>
+            <p class="csh-streak-value">Day <span id="daily-streak">0</span> of 7</p>
+            <div class="csh-streak-days" id="streak-days"></div>
+            <button onclick="claimDailyBonus()" class="csh-btn csh-btn-yellow csh-btn-full" id="daily-bonus-side-btn">
+                <i class="fa-solid fa-gift"></i> Claim Today's Bonus
+            </button>
+            <p class="csh-streak-hint">Consecutive days give bigger bonuses</p>
+        </div>
+    </aside>
+</main>
+
+<!-- Toast -->
+<div id="toast" class="csh-toast hidden"></div>
+
+<script src="cashier.js"></script>
+</body>
+</html>
