@@ -1,7 +1,6 @@
 // ============================================
 // BetNova — Aviator Client
-// Handles: dual bet panels, all-bets feed, chat, provably fair
-// Moving graph: exponential, time-based, climbing plane
+// Smooth 60fps curve · Smooth plane motion · Provably fair
 // ============================================
 
 const API_BASE = (() => {
@@ -31,10 +30,14 @@ let currentCommit = null;
 let lastTimerTick = null;
 let autoBetEnabled = { 1: false, 2: false };
 
-// Flight tracking (for time-based graph)
+// Animation state — driven at 60fps by RAF
 let flightStartTime = null;
-let flightEndTime = null;
-let lastMultiplier = 1.00;
+let lastServerMultiplier = 1.00;
+let displayMultiplier = 1.00;
+let targetMultiplier = 1.00;
+let crashedMultiplier = null;
+let animationFrameId = null;
+let isCrashed = false;
 
 // ============================================
 // CANVAS
@@ -42,19 +45,20 @@ let lastMultiplier = 1.00;
 const canvas = document.getElementById('avi-canvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
 let W = 0, H = 0;
+let DPR = window.devicePixelRatio || 1;
 
 function resizeCanvas() {
     if (!canvas || !ctx) return;
+    DPR = window.devicePixelRatio || 1;
     W = canvas.clientWidth;
     H = canvas.clientHeight;
-    canvas.width = W * window.devicePixelRatio;
-    canvas.height = H * window.devicePixelRatio;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    // Redraw if we're mid-flight
-    if (flightStartTime && lastMultiplier > 1.01) {
-        drawCurve(lastMultiplier, false);
-    }
+    ctx.scale(DPR, DPR);
+
+    // Redraw current frame at new size
+    render(displayMultiplier, isCrashed);
 }
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('orientationchange', () => {
@@ -126,7 +130,7 @@ function showToast(msg, type = 'info', duration = 3000) {
 }
 
 // ============================================
-// SESSION (lenient — no token required)
+// SESSION
 // ============================================
 function checkSession() {
     const user = localStorage.getItem('betnova_user');
@@ -220,7 +224,6 @@ function toggleAutoBet(panel) {
     if (toggle) toggle.classList.toggle('on', autoBetEnabled[panel]);
 }
 
-// Tab switching
 document.querySelectorAll('.avi-bet-tab').forEach(tab => {
     tab.addEventListener('click', () => {
         const panel = tab.dataset.panel;
@@ -242,7 +245,6 @@ document.querySelectorAll('.avi-bet-tab').forEach(tab => {
     });
 });
 
-// Update button label
 function updateActionButton(panel) {
     const btn = document.getElementById(`action-${panel}`);
     const btnAuto = document.getElementById(`action-${panel}-auto`);
@@ -253,7 +255,7 @@ function updateActionButton(panel) {
     const bet = myBets[panel];
 
     if (lastStatus && lastStatus.status === 'FLYING' && bet && !bet.cashedOut) {
-        const payout = (bet.amount * lastStatus.multiplier).toFixed(2);
+        const payout = (bet.amount * displayMultiplier).toFixed(2);
         const title = 'CASH OUT';
         const subtext = `KES ${formatKES(payout)}`;
 
@@ -296,7 +298,6 @@ function applyButtonState(btn, className, disabled, title, subtext) {
     }
 }
 
-// Watch stake input changes
 [1, 2].forEach(panel => {
     const el = document.getElementById(`stake-${panel}`);
     if (el) el.addEventListener('input', () => updateActionButton(panel));
@@ -347,6 +348,75 @@ function handleBetAction(panel) {
 }
 
 // ============================================
+// SMOOTH ANIMATION LOOP (60fps)
+// ============================================
+function startAnimation() {
+    if (animationFrameId) return;
+    let lastFrameTime = performance.now();
+
+    function frame(now) {
+        const deltaMs = now - lastFrameTime;
+        lastFrameTime = now;
+
+        // Smoothly interpolate displayMultiplier toward targetMultiplier
+        // Use exponential ease so it catches up fast but never overshoots
+        if (lastStatus && lastStatus.status === 'FLYING') {
+            const target = lastServerMultiplier;
+            const diff = target - displayMultiplier;
+
+            if (Math.abs(diff) < 0.005) {
+                displayMultiplier = target;
+            } else {
+                // Ease toward target at roughly 30% of remaining gap per frame
+                // This makes the multiplier roll smoothly instead of jumping
+                displayMultiplier += diff * Math.min(1, deltaMs / 100);
+            }
+        } else if (lastStatus && lastStatus.status === 'CRASHED' && crashedMultiplier !== null) {
+            // Snap to crash point
+            displayMultiplier = crashedMultiplier;
+        }
+
+        // Update the DOM multiplier
+        updateMultiplierDisplay();
+
+        // Render the canvas
+        render(displayMultiplier, isCrashed);
+
+        animationFrameId = requestAnimationFrame(frame);
+    }
+    animationFrameId = requestAnimationFrame(frame);
+}
+
+function stopAnimation() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+}
+
+function updateMultiplierDisplay() {
+    const multiplierEl = document.getElementById('multiplier');
+    if (!multiplierEl) return;
+
+    if (!lastStatus) return;
+
+    if (lastStatus.status === 'WAITING') {
+        // Already set by tick handler
+        return;
+    }
+
+    if (lastStatus.status === 'FLYING') {
+        multiplierEl.innerHTML = `${displayMultiplier.toFixed(2)}<span>x</span>`;
+        multiplierEl.style.color = '#ffffff';
+        multiplierEl.classList.remove('crashed');
+    } else if (lastStatus.status === 'CRASHED') {
+        multiplierEl.innerHTML = `${displayMultiplier.toFixed(2)}<span>x</span>`;
+        multiplierEl.style.color = '#ef4444';
+        multiplierEl.classList.add('crashed');
+    }
+}
+
+// ============================================
 // SOCKET — CONNECTION
 // ============================================
 socket.on('connect', () => {
@@ -366,21 +436,22 @@ socket.on('reconnect', () => {
 });
 
 // ============================================
-// SOCKET — GAME TICK (main game loop)
+// SOCKET — GAME TICK
 // ============================================
 socket.on('betnova_tick', (state) => {
     lastStatus = state;
 
-    const multiplierEl = document.getElementById('multiplier');
     const statusBadge = document.getElementById('status-badge');
 
     // ---------- WAITING ----------
     if (state.status === 'WAITING') {
-        // Reset flight tracking
         flightStartTime = null;
-        flightEndTime = null;
-        lastMultiplier = 1.00;
+        lastServerMultiplier = 1.00;
+        displayMultiplier = 1.00;
+        crashedMultiplier = null;
+        isCrashed = false;
 
+        const multiplierEl = document.getElementById('multiplier');
         if (multiplierEl) {
             multiplierEl.innerHTML = `${state.timer}<span>s</span>`;
             multiplierEl.style.color = '#fbbf24';
@@ -397,24 +468,17 @@ socket.on('betnova_tick', (state) => {
 
     // ---------- FLYING ----------
     else if (state.status === 'FLYING') {
-        // Capture flight start time on first FLYING tick
         if (!flightStartTime) {
             flightStartTime = Date.now();
+            displayMultiplier = 1.00;
         }
 
-        lastMultiplier = state.multiplier;
+        lastServerMultiplier = state.multiplier;
+        isCrashed = false;
 
-        if (multiplierEl) {
-            multiplierEl.innerHTML = `${state.multiplier.toFixed(2)}<span>x</span>`;
-            multiplierEl.style.color = '#ffffff';
-            multiplierEl.classList.remove('crashed');
-        }
         if (statusBadge) statusBadge.innerText = 'In flight — cash out before crash';
 
-        // Draw the moving curve
-        drawCurve(state.multiplier, false);
-
-        // Auto-cashout check
+        // Auto-cashout check against server multiplier (authoritative)
         [1, 2].forEach(panel => {
             const bet = myBets[panel];
             if (bet && !bet.cashedOut) {
@@ -429,18 +493,12 @@ socket.on('betnova_tick', (state) => {
 
     // ---------- CRASHED ----------
     else if (state.status === 'CRASHED') {
-        flightEndTime = Date.now();
-        lastMultiplier = state.multiplier;
+        crashedMultiplier = state.multiplier;
+        lastServerMultiplier = state.multiplier;
+        displayMultiplier = state.multiplier;
+        isCrashed = true;
 
-        if (multiplierEl) {
-            multiplierEl.innerHTML = `${state.multiplier.toFixed(2)}<span>x</span>`;
-            multiplierEl.style.color = '#ef4444';
-            multiplierEl.classList.add('crashed');
-        }
         if (statusBadge) statusBadge.innerText = 'FLEW AWAY!';
-
-        // Redraw with the actual crash multiplier (frozen)
-        drawCurve(state.multiplier, true);
     }
 
     updateActionButton(1);
@@ -711,7 +769,7 @@ function toggleChat() {
 }
 
 // ============================================
-// PAYHERO — DEPOSIT / WITHDRAW
+// PAYHERO
 // ============================================
 async function handleDeposit() {
     if (!currentUser) return showToast('Sign in first', 'error');
@@ -849,85 +907,65 @@ async function loadHistory() {
 }
 
 // ============================================
-// CANVAS DRAWING — Exponential moving curve
+// CANVAS — Smooth exponential curve
 // ============================================
 function clearCanvas() {
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
 }
 
-/**
- * Draw the Aviator curve.
- *
- * @param {number} multiplier - Current multiplier (e.g. 2.45)
- * @param {boolean} crashed - Whether the round has crashed
- *
- * The curve is drawn as:
- *  - X axis: time-progress normalized to 0..1 (based on multiplier)
- *  - Y axis: exponential climb (multiplier ^ exponent)
- *  - The plane sits at the head of the curve
- *  - The area under the curve is filled with a red gradient
- */
-function drawCurve(multiplier, crashed = false) {
+function render(multiplier, crashed) {
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
 
-    // ---------- Geometry ----------
-    const padL = 50;
-    const padR = 50;
-    const padT = 60;
-    const padB = 40;
+    const padL = 40;
+    const padR = 40;
+    const padT = 55;
+    const padB = 30;
 
     const startX = padL;
     const startY = H - padB;
     const endX = W - padR;
     const endY = padT;
-
     const spanX = endX - startX;
     const spanY = startY - endY;
 
     // ---------- Grid ----------
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
-    for (let i = 1; i < 6; i++) {
-        const y = startY - spanY * (i / 6);
+    for (let i = 1; i < 5; i++) {
+        const y = startY - spanY * (i / 5);
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(W, y);
-        ctx.stroke();
-    }
-    for (let i = 1; i < 8; i++) {
-        const x = startX + spanX * (i / 8);
-        ctx.beginPath();
-        ctx.moveTo(x, endY);
-        ctx.lineTo(x, startY);
+        ctx.moveTo(startX, y);
+        ctx.lineTo(endX, y);
         ctx.stroke();
     }
 
-    // ---------- Normalize multiplier to curve progress ----------
-    // progress = 0 at 1.00x, approaching 1.0 as multiplier grows
-    const safeMul = Math.max(1.00, multiplier);
-    const progress = Math.min(0.98, 1 - Math.pow(1 / safeMul, 1.15));
+    // ---------- Curve math ----------
+    const safeMul = Math.max(1.001, multiplier);
 
-    // Exponential climb factor — plane rises fast as multiplier grows
-    const climb = Math.pow(safeMul - 1, 0.65);
+    // X progress: how far across the canvas we are (based on log of multiplier)
+    // At 1.00x → 0, at 2x → ~0.42, at 10x → ~0.68, at 100x → ~0.87
+    const progress = Math.min(0.97, Math.log(safeMul) / Math.log(1000) + (safeMul - 1) * 0.03);
+
+    // Y height: how high the curve has climbed (non-linear, accelerates)
+    // Felt factor makes the curve rise more dramatically as multiplier grows
+    const heightFactor = Math.min(0.97,
+        1 - Math.exp(-(safeMul - 1) * 0.35) + (safeMul - 1) * 0.008);
 
     // ---------- Build curve points ----------
     const points = [];
-    const STEPS = 100;
+    const STEPS = 120;
     for (let i = 0; i <= STEPS; i++) {
-        const t = (i / STEPS) * progress;
+        const t = i / STEPS;
 
-        // Curve x position
-        const x = startX + spanX * t;
+        // Position along the curve (0 to progress)
+        const tt = t * progress;
+        const x = startX + spanX * tt;
 
-        // Curve y position — exponential climb normalized by max climb
-        // We compute where this step would land in the (0..progress) range
-        const normalizedT = progress > 0 ? (t / progress) : 0;
-        const climbAtT = Math.pow(safeMul - 1, 0.65) * normalizedT;
-        const yOffset = climbAtT / Math.max(climb, 0.001);
-
-        const y = startY - spanY * yOffset * 0.95;
+        // Y climbs exponentially: steeper as t increases
+        const yProgress = Math.pow(t, 1.4) * heightFactor;
+        const y = startY - spanY * yProgress;
 
         points.push({ x, y });
     }
@@ -936,16 +974,16 @@ function drawCurve(multiplier, crashed = false) {
     if (points.length > 1) {
         const head = points[points.length - 1];
 
-        // 1. Fill under curve (gradient red)
-        const gradient = ctx.createLinearGradient(startX, startY, head.x, head.y);
+        // 1. Gradient fill under curve
+        const grad = ctx.createLinearGradient(startX, startY, head.x, head.y);
         if (crashed) {
-            gradient.addColorStop(0, 'rgba(239, 68, 68, 0.05)');
-            gradient.addColorStop(0.6, 'rgba(239, 68, 68, 0.20)');
-            gradient.addColorStop(1, 'rgba(239, 68, 68, 0.45)');
+            grad.addColorStop(0, 'rgba(239, 68, 68, 0.04)');
+            grad.addColorStop(0.5, 'rgba(239, 68, 68, 0.18)');
+            grad.addColorStop(1, 'rgba(239, 68, 68, 0.42)');
         } else {
-            gradient.addColorStop(0, 'rgba(217, 29, 54, 0.05)');
-            gradient.addColorStop(0.6, 'rgba(217, 29, 54, 0.18)');
-            gradient.addColorStop(1, 'rgba(217, 29, 54, 0.38)');
+            grad.addColorStop(0, 'rgba(217, 29, 54, 0.04)');
+            grad.addColorStop(0.5, 'rgba(217, 29, 54, 0.16)');
+            grad.addColorStop(1, 'rgba(217, 29, 54, 0.35)');
         }
 
         ctx.beginPath();
@@ -953,48 +991,48 @@ function drawCurve(multiplier, crashed = false) {
         points.forEach(p => ctx.lineTo(p.x, p.y));
         ctx.lineTo(head.x, startY);
         ctx.closePath();
-        ctx.fillStyle = gradient;
+        ctx.fillStyle = grad;
         ctx.fill();
 
-        // 2. Base curve line (glowing)
+        // 2. Outer glow line
         ctx.beginPath();
         ctx.strokeStyle = crashed ? '#ef4444' : '#d91d36';
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowBlur = 18;
+        ctx.shadowBlur = 22;
         ctx.shadowColor = crashed
-            ? 'rgba(239, 68, 68, 0.85)'
+            ? 'rgba(239, 68, 68, 0.9)'
             : 'rgba(217, 29, 54, 0.85)';
         points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
         ctx.stroke();
 
-        // 3. Bright accent line on top
+        // 3. Bright core line
         ctx.beginPath();
-        ctx.strokeStyle = crashed ? '#f87171' : '#ff2d55';
-        ctx.lineWidth = 1.5;
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = 'rgba(255, 45, 85, 0.9)';
+        ctx.strokeStyle = crashed ? '#fca5a5' : '#ff2d55';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = 'rgba(255, 45, 85, 1)';
         points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        // 4. Particle trail behind the plane
-        for (let i = 1; i <= 8; i++) {
+        // 4. Particle trail
+        for (let i = 1; i <= 10; i++) {
             const idx = points.length - 1 - i;
             if (idx < 0) break;
             const p = points[idx];
-            const alpha = 0.55 * (1 - i / 8);
-            const radius = Math.max(4.5 - i * 0.5, 0.5);
+            const alpha = 0.6 * (1 - i / 10);
+            const radius = Math.max(5 - i * 0.45, 0.5);
             ctx.fillStyle = crashed
                 ? `rgba(239, 68, 68, ${alpha})`
-                : `rgba(255, 130, 130, ${alpha})`;
+                : `rgba(255, 150, 150, ${alpha})`;
             ctx.beginPath();
             ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        // 5. Plane sprite at the head
+        // 5. Plane at head
         const prev = points[points.length - 2];
         let angle = 0;
         if (prev) {
@@ -1006,31 +1044,31 @@ function drawCurve(multiplier, crashed = false) {
         ctx.rotate(angle);
 
         ctx.fillStyle = crashed ? '#ef4444' : '#d91d36';
-        ctx.shadowBlur = 16;
+        ctx.shadowBlur = 18;
         ctx.shadowColor = 'rgba(217, 29, 54, 0.9)';
 
         // Body
         ctx.beginPath();
-        ctx.moveTo(18, 0);
-        ctx.lineTo(-8, -9);
+        ctx.moveTo(20, 0);
+        ctx.lineTo(-9, -10);
         ctx.lineTo(-3, 0);
-        ctx.lineTo(-8, 9);
+        ctx.lineTo(-9, 10);
         ctx.closePath();
         ctx.fill();
 
         // Top wing
         ctx.beginPath();
-        ctx.moveTo(3, -2);
-        ctx.lineTo(-5, -16);
-        ctx.lineTo(-1, -2);
+        ctx.moveTo(3, -3);
+        ctx.lineTo(-6, -18);
+        ctx.lineTo(-1, -3);
         ctx.closePath();
         ctx.fill();
 
         // Bottom wing
         ctx.beginPath();
-        ctx.moveTo(3, 2);
-        ctx.lineTo(-5, 16);
-        ctx.lineTo(-1, 2);
+        ctx.moveTo(3, 3);
+        ctx.lineTo(-6, 18);
+        ctx.lineTo(-1, 3);
         ctx.closePath();
         ctx.fill();
 
@@ -1045,6 +1083,7 @@ function drawCurve(multiplier, crashed = false) {
 document.addEventListener('DOMContentLoaded', () => {
     resizeCanvas();
     checkSession();
+    startAnimation();
 
     const btn = document.getElementById('sound-toggle');
     if (btn) {
@@ -1062,4 +1101,9 @@ document.addEventListener('DOMContentLoaded', () => {
             loadHistory();
         }
     }, 30000);
+});
+
+// Cleanup on unload
+window.addEventListener('beforeunload', () => {
+    stopAnimation();
 });
