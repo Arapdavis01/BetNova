@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="sports.css">
+    <link rel="stylesheet" href="/sports/sports.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -18,7 +18,7 @@
 <header class="spo-header">
     <div class="spo-header-inner">
         <div class="spo-header-left">
-            <a href="/" class="spo-back">
+            <a href="/" class="spo-back" title="Back to Home">
                 <i class="fa-solid fa-arrow-left"></i>
                 <span class="spo-logo">
                     <span class="spo-logo-red">Bet</span><span class="spo-logo-white">Nova</span>
@@ -29,17 +29,19 @@
                 <a href="/sports" class="spo-nav-link active">Sports</a>
                 <a href="/aviator" class="spo-nav-link">Aviator</a>
                 <a href="/crash" class="spo-nav-link">Crash</a>
+                <a href="/cashier" class="spo-nav-link">Cashier</a>
+                <a href="/promotions" class="spo-nav-link">Promotions</a>
             </nav>
         </div>
 
         <div class="spo-header-right">
-            <div class="spo-balance-chip">
+            <div class="spo-balance-chip" onclick="location.href='/cashier'" title="Open Cashier">
                 <i class="fa-solid fa-wallet"></i>
                 <span id="balance-display">0.00</span>
                 <span class="spo-currency">KES</span>
             </div>
-            <button class="spo-icon-btn" onclick="location.href='/'">
-                <i class="fa-solid fa-user"></i>
+            <button class="spo-icon-btn" onclick="location.href='/'" title="Home">
+                <i class="fa-solid fa-house"></i>
             </button>
         </div>
     </div>
@@ -132,6 +134,10 @@
         <i class="fa-solid fa-plane-up"></i>
         <span>Aviator</span>
     </a>
+    <a href="/cashier" class="spo-bottom-item">
+        <i class="fa-solid fa-wallet"></i>
+        <span>Cashier</span>
+    </a>
     <a href="#" class="spo-bottom-item" onclick="openMyBets(); return false;">
         <i class="fa-solid fa-clock-rotate-left"></i>
         <span>My Bets</span>
@@ -150,6 +156,6 @@
 <!-- Toast -->
 <div id="toast" class="spo-toast hidden"></div>
 
-<script src="sports.js"></script>
+<script src="/sports/sports.js"></script>
 </body>
 </html>
