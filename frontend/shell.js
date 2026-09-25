@@ -15,13 +15,15 @@ const API_BASE = (() => {
 const socket = io(API_BASE || undefined, {
     transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionAttempts: 10
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000
 });
 
 // ============================================
 // STATE
 // ============================================
 let currentUser = null;
+let currentCategory = 'featured';
 
 // ============================================
 // UTILS
@@ -31,6 +33,12 @@ function formatKES(n) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 let toastTimer = null;
@@ -321,45 +329,89 @@ socket.on('balance_update', (balance) => {
 });
 
 // ============================================
-// LIVE WINS FEED (simulated; replace with real socket later)
+// SOCKET — LIVE WINS (real events from server)
 // ============================================
-const GAME_NAMES = ['Aviator', 'Crash', 'JetX', 'Mines', 'Plinko', 'Dice Roll'];
-const NAMES = ['john***', 'mary***', 'danc***', 'alex***', 'jane***', 'kev***', 'ama***', 'pete***'];
+// The server emits `feed` events whenever a player cashes out.
+// We use those to display recent wins in the live wins section.
+const liveWins = [];       // Rolling window of recent wins
+const MAX_LIVE_WINS = 8;
 
-function randomLiveWin() {
-    const user = NAMES[Math.floor(Math.random() * NAMES.length)];
-    const game = GAME_NAMES[Math.floor(Math.random() * GAME_NAMES.length)];
-    const multi = (1.2 + Math.random() * 10).toFixed(2);
-    const amount = Math.floor(100 + Math.random() * 50000);
-    const colors = ['#ef4444', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    return { user, game, multi, amount, color };
+socket.on('feed', ({ msg, type }) => {
+    if (type !== 'success') return;
+
+    // Parse "username cashed out at X.XXx for KES YYY"
+    const match = msg.match(/^(.+?) cashed out at ([\d.]+)x for KES ([\d,.]+)/);
+    if (!match) return;
+
+    const username = match[1].replace(/\s+/g, ' ').trim();
+    const multi = parseFloat(match[2]);
+    const amount = parseFloat(match[3].replace(/,/g, ''));
+
+    // Mask username for privacy
+    const maskedName = username.length > 4
+        ? username.slice(0, 4) + '***'
+        : username.charAt(0) + '***';
+
+    liveWins.unshift({
+        user: maskedName,
+        game: 'Aviator',
+        multi,
+        amount,
+        color: pickAvatarColor(username)
+    });
+    if (liveWins.length > MAX_LIVE_WINS) liveWins.pop();
+
+    renderLiveWins();
+});
+
+function pickAvatarColor(seed) {
+    const colors = ['#ef4444', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
 }
 
 function renderLiveWins() {
     const container = document.getElementById('live-wins');
     if (!container) return;
 
-    container.innerHTML = '';
-    for (let i = 0; i < 4; i++) {
-        const { user, game, multi, amount, color } = randomLiveWin();
-        const card = document.createElement('div');
-        card.className = 'shell-win-card';
-        card.innerHTML = `
-            <div class="shell-win-avatar" style="background:${color}">${user.charAt(0).toUpperCase()}</div>
-            <div class="shell-win-info">
-                <p class="shell-win-user">${user}</p>
-                <p class="shell-win-game">${game} · ${multi}x</p>
+    if (liveWins.length === 0) {
+        container.innerHTML = `
+            <div class="shell-win-card shell-win-empty">
+                <i class="fa-solid fa-hourglass-half"></i>
+                <span>Waiting for the first cashout...</span>
             </div>
-            <div class="shell-win-amount">+KES ${formatKES(amount)}</div>
         `;
-        container.appendChild(card);
+        return;
     }
+
+    container.innerHTML = liveWins.slice(0, 4).map(w => `
+        <div class="shell-win-card">
+            <div class="shell-win-avatar" style="background:${w.color}">${w.user.charAt(0).toUpperCase()}</div>
+            <div class="shell-win-info">
+                <p class="shell-win-user">${escapeHtml(w.user)}</p>
+                <p class="shell-win-game">${w.game} · ${w.multi.toFixed(2)}x</p>
+            </div>
+            <div class="shell-win-amount">+KES ${formatKES(w.amount)}</div>
+        </div>
+    `).join('');
 }
 
-// Jackpot ticker (simulated; replace with server-driven later)
+// ============================================
+// JACKPOT TICKER (server-driven if available, else simulated)
+// ============================================
 let jackpot = 1247890;
+
+socket.on('jackpot_update', (value) => {
+    if (typeof value === 'number') {
+        jackpot = value;
+        const el = document.getElementById('jackpot-amount');
+        if (el) el.innerText = jackpot.toLocaleString('en-KE');
+    }
+});
+
 function bumpJackpot() {
+    // Simulated growth — replace with server-driven value when ready
     jackpot += Math.floor(Math.random() * 500);
     const el = document.getElementById('jackpot-amount');
     if (el) el.innerText = jackpot.toLocaleString('en-KE');
@@ -368,28 +420,90 @@ function bumpJackpot() {
 // ============================================
 // CATEGORY FILTER
 // ============================================
-document.querySelectorAll('.shell-cat-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.shell-cat-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+function initCategoryFilter() {
+    const btns = document.querySelectorAll('.shell-cat-btn');
+    if (btns.length === 0) return;
 
-        const cat = btn.dataset.cat;
-        const title = document.getElementById('games-section-title');
-        const titles = {
-            featured: 'Featured Games',
-            crash: 'Crash Games',
-            casino: 'Casino Games',
-            virtuals: 'Virtual Sports',
-            live: 'Live Games'
-        };
-        if (title) title.innerText = titles[cat] || 'Games';
+    btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            btns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
 
-        // Filter cards
-        document.querySelectorAll('.shell-game-card').forEach(card => {
-            const show = cat === 'featured' || card.dataset.cat === cat;
-            card.style.display = show ? '' : 'none';
+            const cat = btn.dataset.cat || 'featured';
+            currentCategory = cat;
+
+            const title = document.getElementById('games-section-title');
+            const titles = {
+                featured: 'Featured Games',
+                crash: 'Crash Games',
+                casino: 'Casino Games',
+                virtuals: 'Virtual Sports',
+                live: 'Live Games'
+            };
+            if (title) title.innerText = titles[cat] || 'Games';
+
+            document.querySelectorAll('.shell-game-card').forEach(card => {
+                const show = cat === 'featured' || card.dataset.cat === cat;
+                card.style.display = show ? '' : 'none';
+            });
         });
     });
+}
+
+// ============================================
+// SEARCH (optional — only if a search input exists)
+// ============================================
+function initSearch() {
+    const input = document.getElementById('shell-search-input');
+    if (!input) return;
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+
+        document.querySelectorAll('.shell-game-card').forEach(card => {
+            const title = card.querySelector('h3')?.innerText.toLowerCase() || '';
+            const sub = card.querySelector('p')?.innerText.toLowerCase() || '';
+            const matches = title.includes(q) || sub.includes(q);
+            card.style.display = matches ? '' : 'none';
+        });
+    });
+}
+
+// ============================================
+// GAME NAV HIGHLIGHT (mark current page in nav)
+// ============================================
+function highlightCurrentPage() {
+    const path = window.location.pathname;
+
+    document.querySelectorAll('.shell-nav-link, .shell-bottom-item, .shell-mobile-links a').forEach(link => {
+        const href = link.getAttribute('href');
+        if (!href) return;
+
+        // Exact match or sub-path match
+        const isActive = href === path
+            || (href === '/' && path === '/')
+            || (href !== '/' && path.startsWith(href));
+
+        if (isActive) {
+            link.classList.add('active');
+        } else {
+            link.classList.remove('active');
+        }
+    });
+}
+
+// ============================================
+// SOCKET — CONNECT / DISCONNECT LOG
+// ============================================
+socket.on('connect', () => {
+    console.log('[Shell] Socket connected:', socket.id);
+    if (currentUser) {
+        socket.emit('chat_join', { username: currentUser.username });
+    }
+});
+
+socket.on('disconnect', (reason) => {
+    console.log('[Shell] Socket disconnected:', reason);
 });
 
 // ============================================
@@ -399,9 +513,22 @@ document.addEventListener('DOMContentLoaded', () => {
     checkSession();
     setInterval(refreshBalance, 15000);
 
-    renderLiveWins();
-    setInterval(renderLiveWins, 8000);
+    initCategoryFilter();
+    initSearch();
+    highlightCurrentPage();
 
+    renderLiveWins();
     bumpJackpot();
     setInterval(bumpJackpot, 2000);
+
+    // Fallback: if no real `feed` events arrive, seed with a couple of examples
+    setTimeout(() => {
+        if (liveWins.length === 0) {
+            liveWins.push(
+                { user: 'john***', game: 'Aviator', multi: 3.35, amount: 6700, color: '#ef4444' },
+                { user: 'mary***', game: 'JetX', multi: 8.12, amount: 24360, color: '#10b981' }
+            );
+            renderLiveWins();
+        }
+    }, 4000);
 });
