@@ -16,6 +16,9 @@ const responsibleRoutes = require('./routes/responsible');
 const chatRoutes = require('./routes/chat');
 const supportRoutes = require('./routes/support');
 const adminRoutes = require('./routes/admin');
+const walletRoutes = require('./routes/wallet');
+const profileRoutes = require('./routes/profile');
+const sportsRoutes = require('./routes/sports');
 
 // ---------- Models ----------
 const User = require('./models/User');
@@ -26,6 +29,8 @@ const AuditLog = require('./models/AuditLog');
 
 // ---------- Services ----------
 const provablyFair = require('./services/provablyFair');
+const { fullRefresh } = require('./services/oddsProvider');
+const { runSettlementCycle } = require('./services/settler');
 
 const app = express();
 
@@ -65,6 +70,9 @@ app.use('/api/responsible', responsibleRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/sports', sportsRoutes);
 
 // ============================================
 // SERVE FRONTEND (Production)
@@ -72,12 +80,27 @@ app.use('/api/admin', adminRoutes);
 if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../frontend');
 
-    // ---------- Aviator page (specific route FIRST) ----------
+    // ---------- Named page routes (specific routes FIRST) ----------
     app.get('/aviator', (req, res) => {
         res.sendFile(path.join(frontendPath, 'aviator/index.html'));
     });
     app.get('/aviator/', (req, res) => {
         res.sendFile(path.join(frontendPath, 'aviator/index.html'));
+    });
+    app.get('/crash', (req, res) => {
+        res.sendFile(path.join(frontendPath, 'index.html'));
+    });
+    app.get('/sports', (req, res) => {
+        res.sendFile(path.join(frontendPath, 'sports/index.html'));
+    });
+    app.get('/sports/', (req, res) => {
+        res.sendFile(path.join(frontendPath, 'sports/index.html'));
+    });
+    app.get('/cashier', (req, res) => {
+        res.sendFile(path.join(frontendPath, 'cashier/index.html'));
+    });
+    app.get('/cashier/', (req, res) => {
+        res.sendFile(path.join(frontendPath, 'cashier/index.html'));
     });
 
     // ---------- Static assets ----------
@@ -117,9 +140,6 @@ let gameState = {
 };
 
 // Runtime bet registry — keyed by `${socketId}:${panel}`
-// panel = 1 or 2 (Aviator dual bet panels)
-// value = { socketId, userId, username, amount, cashedOut, cashoutMultiplier,
-//           autoCashout, avatarColor, panel }
 const activeBets = new Map();
 
 // Current secret seed (revealed after crash)
@@ -142,7 +162,7 @@ function broadcastState() {
     io.emit('chat_online', onlineUsers.size);
 }
 
-// ---------- All Bets Feed (for Aviator left panel) ----------
+// ---------- All Bets Feed ----------
 function getPublicBets() {
     const bets = [];
     for (const bet of activeBets.values()) {
@@ -154,7 +174,6 @@ function getPublicBets() {
             avatarColor: bet.avatarColor
         });
     }
-    // Cashed-out first, then largest amount first
     bets.sort((a, b) => {
         if (a.cashedOut !== b.cashedOut) return a.cashedOut ? -1 : 1;
         return b.amount - a.amount;
@@ -170,7 +189,6 @@ function broadcastAllBets() {
 // ENGINE LOOP
 // ============================================
 async function runEngineLoop() {
-    // Begin a new round
     gameState.roundId += 1;
     currentServerSeed = provablyFair.generateServerSeed();
     gameState.serverSeedHash = provablyFair.hashSeed(currentServerSeed);
@@ -179,11 +197,9 @@ async function runEngineLoop() {
     gameState.timer = 5;
     gameState.status = "WAITING";
 
-    // Clear all bets from previous round
     activeBets.clear();
     broadcastAllBets();
 
-    // Persist round metadata
     try {
         await Round.create({
             roundId: gameState.roundId,
@@ -212,7 +228,6 @@ async function runEngineLoop() {
         }
     }
 
-    // Broadcast commit hash
     io.emit('round_commit', {
         roundId: gameState.roundId,
         serverSeedHash: gameState.serverSeedHash
@@ -246,10 +261,9 @@ function launchMultiplier() {
             let increment = gameState.multiplier < 3.0 ? 0.02 : 0.07;
             gameState.multiplier = parseFloat((gameState.multiplier + increment).toFixed(2));
 
-            // ---------- Server-side auto-cashout check ----------
+            // Server-side auto-cashout check
             for (const [key, bet] of activeBets.entries()) {
                 if (!bet.cashedOut && bet.autoCashout && gameState.multiplier >= bet.autoCashout) {
-                    // Trigger cash out for this bet
                     executeCashOut(key, bet);
                 }
             }
@@ -269,11 +283,11 @@ async function executeCashOut(betKey, bet) {
     const payout = parseFloat((bet.amount * gameState.multiplier).toFixed(2));
     const profit = parseFloat((payout - bet.amount).toFixed(2));
 
-    // Credit user balance
+    // ---------- Credit user balance (winnings → main balance) ----------
     try {
         const user = await User.findById(bet.userId);
         if (user) {
-            user.balance = parseFloat((user.balance + payout).toFixed(2));
+            user.creditWinnings(payout);
             await user.save();
             io.to(bet.socketId).emit('balance_update', user.balance);
         }
@@ -334,12 +348,10 @@ async function explodePlane() {
     gameState.status = "CRASHED";
     broadcastState();
 
-    // Update crash history
     crashHistory.unshift(gameState.crashPoint);
     if (crashHistory.length > 20) crashHistory.pop();
     io.emit('crash_history', crashHistory);
 
-    // Persist round with revealed seed
     try {
         await Round.updateOne(
             { roundId: gameState.roundId },
@@ -361,7 +373,6 @@ async function explodePlane() {
         console.error('Round reveal error:', err.message);
     }
 
-    // Broadcast reveal
     io.emit('round_reveal', {
         roundId: gameState.roundId,
         serverSeed: currentServerSeed,
@@ -401,7 +412,6 @@ async function explodePlane() {
 
     broadcastAllBets();
 
-    // Next round after break
     setTimeout(() => {
         runEngineLoop();
     }, 4000);
@@ -494,12 +504,12 @@ io.on('connection', (socket) => {
             const user = await User.findById(userId);
             if (!user) return socket.emit('bet_error', 'User not found.');
 
-            // Account status check
+            // Account status
             if (user.status && user.status !== 'active') {
                 return socket.emit('bet_error', 'Your account is not active.');
             }
 
-            // Self-exclusion check
+            // Self-exclusion
             if (user.selfExcluded && user.selfExcludedUntil > new Date()) {
                 return socket.emit('bet_error', 'You are self-excluded from betting.');
             }
@@ -524,13 +534,14 @@ io.on('connection', (socket) => {
                 }
             }
 
-            if (user.balance < amt) return socket.emit('bet_error', 'Insufficient funds.');
-
-            // Deduct balance
-            user.balance = parseFloat((user.balance - amt).toFixed(2));
+            // ---------- Consume balance (main first, then bonus) ----------
+            const consumed = user.consumeBalance(amt);
+            if (!consumed) {
+                return socket.emit('bet_error', 'Insufficient funds.');
+            }
             await user.save();
 
-            // Register active bet (keyed by socket + panel)
+            // Register active bet
             activeBets.set(betKey, {
                 socketId: socket.id,
                 userId: user._id.toString(),
@@ -549,11 +560,18 @@ io.on('connection', (socket) => {
                     action: 'BET_PLACED',
                     userId: user._id,
                     username: user.username,
-                    metadata: { amount: amt, roundId: gameState.roundId, panel }
+                    metadata: {
+                        amount: amt,
+                        roundId: gameState.roundId,
+                        panel,
+                        mainUsed: consumed.mainUsed,
+                        bonusUsed: consumed.bonusUsed
+                    }
                 });
             } catch (_) {}
 
             socket.emit('balance_update', user.balance);
+            socket.emit('bonus_update', user.bonusBalance);
             socket.emit('bet_placed', { amount: amt, panel: parseInt(panel) || 1 });
             io.emit('feed', {
                 msg: `${user.username} placed ${CURRENCY} ${amt.toFixed(2)}`,
@@ -602,7 +620,8 @@ io.on('connection', (socket) => {
                 try {
                     const user = await User.findById(bet.userId);
                     if (user) {
-                        user.balance = parseFloat((user.balance + bet.amount).toFixed(2));
+                        // Refund to main balance (refunds never go to bonus)
+                        user.creditWinnings(bet.amount);
                         await user.save();
                     }
                 } catch (e) {
@@ -620,8 +639,6 @@ io.on('connection', (socket) => {
 // ============================================
 // PERIODIC ALL-BETS BROADCAST
 // ============================================
-// Sends the current bet list to all clients every 500ms.
-// Lightweight — only sends username, amount, cashout info.
 setInterval(() => {
     if (activeBets.size > 0 || gameState.status !== 'WAITING') {
         broadcastAllBets();
@@ -663,8 +680,32 @@ connectDB().then(async () => {
         console.log(`🛡️  Responsible Gambling: ENABLED`);
         console.log(`🎛️  Admin API: ${process.env.ADMIN_TOKEN ? 'ENABLED' : 'DISABLED'}`);
         console.log(`✈️  Aviator: ENABLED (/aviator)`);
+        console.log(`🏆 Sports Betting: ${process.env.ODDS_API_KEY ? 'ENABLED (/sports)' : 'DISABLED (no ODDS_API_KEY)'}`);
+        console.log(`💰 Wallet & Referral: ENABLED (/api/wallet)`);
+        console.log(`👤 Profile API: ENABLED (/api/profile)`);
 
         runEngineLoop();
+
+        // ============================================
+        // BACKGROUND JOBS
+        // ============================================
+
+        // Initial odds sync — 30 seconds after startup
+        if (process.env.ODDS_API_KEY) {
+            setTimeout(() => {
+                fullRefresh().catch(err => console.error('[Startup] Odds refresh failed:', err.message));
+            }, 30000);
+
+            // Refresh odds every 30 minutes
+            setInterval(() => {
+                fullRefresh().catch(err => console.error('[Cron] Odds refresh failed:', err.message));
+            }, 30 * 60 * 1000);
+
+            // Run settlement every 5 minutes
+            setInterval(() => {
+                runSettlementCycle().catch(err => console.error('[Cron] Settler failed:', err.message));
+            }, 5 * 60 * 1000);
+        }
     });
 });
 
