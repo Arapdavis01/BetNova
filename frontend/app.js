@@ -1,7 +1,29 @@
-// ---------- Socket & DOM Bindings ----------
-const API_BASE = "http://localhost:5000";
-const socket = io(API_BASE);
+// ---------- Environment-Aware API Base ----------
+// When served by the backend (production), API_BASE is empty (same origin).
+// When running frontend locally with backend on port 5000, it points there.
+const API_BASE = (() => {
+    const host = window.location.hostname;
+    const port = window.location.port;
 
+    // Local development: frontend served separately (e.g., Live Server on 5500)
+    if ((host === 'localhost' || host === '127.0.0.1') && port !== '5000') {
+        return 'http://localhost:5000';
+    }
+
+    // Same origin (backend serving frontend, or local dev on port 5000)
+    return '';
+})();
+
+console.log(`🔌 BetNova API Base: "${API_BASE || window.location.origin}"`);
+
+const socket = io(API_BASE || undefined, {
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000
+});
+
+// ---------- DOM Bindings ----------
 const gameLock = document.getElementById("game-lock");
 const betLock = document.getElementById("bet-lock");
 const authZone = document.getElementById("auth-zone");
@@ -35,7 +57,7 @@ window.addEventListener("resize", () => {
 
 // ---------- Session State ----------
 let currentUser = null;   // { userId, username }
-let myBet = null;         // { amount, cashedOut }
+let myBet = null;         // { amount, cashedOut, cashoutMultiplier }
 let lastStatus = null;
 
 // ---------- Feed ----------
@@ -49,7 +71,6 @@ function appendFeed(message, type = "info") {
     log.innerText = `[${new Date().toLocaleTimeString()}] ${message}`;
     feedContainer.prepend(log);
 
-    // Trim old entries
     while (feedContainer.children.length > 40) {
         feedContainer.removeChild(feedContainer.lastChild);
     }
@@ -59,7 +80,7 @@ function appendFeed(message, type = "info") {
 function openModal(id) { document.getElementById(id).classList.remove("hidden"); }
 function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
 
-// ---------- Session Handling ----------
+// ---------- Session ----------
 function checkSession() {
     const user = localStorage.getItem("betnova_user");
     const userId = localStorage.getItem("betnova_userid");
@@ -131,6 +152,7 @@ async function handleAuth(event, type) {
             openModal("signin-modal");
         }
     } catch (err) {
+        console.error(err);
         alert("Cannot resolve network route connection to database backend.");
     }
 }
@@ -171,14 +193,12 @@ function drawFlightLine(progress) {
     }
     ctx.stroke();
 
-    // Airplane node
     ctx.shadowBlur = 0;
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.arc(targetX, targetY, 6, 0, 2 * Math.PI);
     ctx.fill();
 
-    // Pulse ring
     ctx.strokeStyle = "rgba(255,255,255,0.35)";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -186,17 +206,9 @@ function drawFlightLine(progress) {
     ctx.stroke();
 }
 
-// ---------- UI State Helpers ----------
+// ---------- Button State Machine ----------
 function updateButtonStates(state) {
-    const authed = !!currentUser;
-
-    if (!authed) {
-        placeBetBtn.disabled = true;
-        cashoutBtn.disabled = true;
-        return;
-    }
-
-    if (!state) {
+    if (!currentUser || !state) {
         placeBetBtn.disabled = true;
         cashoutBtn.disabled = true;
         return;
@@ -234,6 +246,21 @@ function updateButtonStates(state) {
 }
 
 // ---------- Socket Events ----------
+socket.on("connect", () => {
+    console.log("✅ Socket connected:", socket.id);
+    appendFeed("Connected to BetNova live server.", "success");
+});
+
+socket.on("disconnect", (reason) => {
+    console.log("❌ Socket disconnected:", reason);
+    appendFeed("Disconnected from server. Reconnecting...", "alert");
+});
+
+socket.on("connect_error", (err) => {
+    console.error("Socket connection error:", err.message);
+    appendFeed("Connection error — retrying...", "alert");
+});
+
 socket.on("betnova_tick", (state) => {
     lastStatus = state;
 
@@ -329,7 +356,7 @@ cashoutBtn.addEventListener("click", () => {
 });
 
 // ---------- Init ----------
-document.addEventListener("DOMContentLoaded", checkSession);
-
-// Periodic balance resync (in case of missed socket updates)
-setInterval(refreshBalance, 15000);
+document.addEventListener("DOMContentLoaded", () => {
+    checkSession();
+    setInterval(refreshBalance, 15000);
+});
