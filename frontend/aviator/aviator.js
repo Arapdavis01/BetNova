@@ -1,6 +1,7 @@
 // ============================================
 // BetNova — Aviator Client
 // Handles: dual bet panels, all-bets feed, chat, provably fair
+// Moving graph: exponential, time-based, climbing plane
 // ============================================
 
 const API_BASE = (() => {
@@ -24,11 +25,16 @@ const socket = io(API_BASE || undefined, {
 // STATE
 // ============================================
 let currentUser = null;
-let myBets = { 1: null, 2: null };  // { amount, cashedOut, cashoutMultiplier }
+let myBets = { 1: null, 2: null };
 let lastStatus = null;
 let currentCommit = null;
 let lastTimerTick = null;
 let autoBetEnabled = { 1: false, 2: false };
+
+// Flight tracking (for time-based graph)
+let flightStartTime = null;
+let flightEndTime = null;
+let lastMultiplier = 1.00;
 
 // ============================================
 // CANVAS
@@ -45,6 +51,10 @@ function resizeCanvas() {
     canvas.height = H * window.devicePixelRatio;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    // Redraw if we're mid-flight
+    if (flightStartTime && lastMultiplier > 1.01) {
+        drawCurve(lastMultiplier, false);
+    }
 }
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('orientationchange', () => {
@@ -126,19 +136,15 @@ function checkSession() {
     if (user && userId) {
         currentUser = { userId, username: user };
 
-        // Hide the lock overlay
         const lock = document.getElementById('game-lock');
         if (lock) lock.classList.add('hidden');
 
-        // Update balance display
         const balEl = document.getElementById('balance-display');
         if (balEl) balEl.innerText = formatKES(balance || 0);
 
-        // Update profile modal
         const profileName = document.getElementById('profile-name');
         if (profileName) profileName.innerText = user;
 
-        // Refresh from server + join chat
         refreshBalance();
         socket.emit('chat_join', { username: user });
     } else {
@@ -214,20 +220,18 @@ function toggleAutoBet(panel) {
     if (toggle) toggle.classList.toggle('on', autoBetEnabled[panel]);
 }
 
-// Tab switching (Bet / Auto) inside each panel
+// Tab switching
 document.querySelectorAll('.avi-bet-tab').forEach(tab => {
     tab.addEventListener('click', () => {
         const panel = tab.dataset.panel;
         const mode = tab.dataset.mode;
 
-        // Toggle active on tab
         const parent = tab.parentElement;
         if (parent) {
             parent.querySelectorAll('.avi-bet-tab').forEach(t => t.classList.remove('active'));
         }
         tab.classList.add('active');
 
-        // Show correct body
         const panelEl = document.getElementById(`bet-panel-${panel}`);
         if (!panelEl) return;
         panelEl.querySelectorAll('.avi-bet-body').forEach(body => {
@@ -238,7 +242,7 @@ document.querySelectorAll('.avi-bet-tab').forEach(tab => {
     });
 });
 
-// Update button label based on state
+// Update button label
 function updateActionButton(panel) {
     const btn = document.getElementById(`action-${panel}`);
     const btnAuto = document.getElementById(`action-${panel}-auto`);
@@ -248,7 +252,6 @@ function updateActionButton(panel) {
     const stake = parseFloat(stakeInput.value) || 0;
     const bet = myBets[panel];
 
-    // If in flight and we have an active bet that hasn't cashed out
     if (lastStatus && lastStatus.status === 'FLYING' && bet && !bet.cashedOut) {
         const payout = (bet.amount * lastStatus.multiplier).toFixed(2);
         const title = 'CASH OUT';
@@ -259,7 +262,6 @@ function updateActionButton(panel) {
         return;
     }
 
-    // If we have a bet in this round (placed or cashed)
     if (bet && (bet.cashedOut || (lastStatus && lastStatus.status !== 'CRASHED'))) {
         const title = bet.cashedOut ? 'CASHED OUT' : 'BET PLACED';
         const subtext = bet.cashedOut
@@ -271,7 +273,6 @@ function updateActionButton(panel) {
         return;
     }
 
-    // Default: ready to bet
     const title = 'BET';
     const subtext = `KES ${formatKES(stake)}`;
     const canBet = lastStatus && lastStatus.status === 'WAITING';
@@ -281,11 +282,9 @@ function updateActionButton(panel) {
 }
 
 function applyButtonState(btn, className, disabled, title, subtext) {
-    // Update class
     btn.className = `avi-action-btn ${className}`;
     btn.disabled = disabled;
 
-    // Update inner text — preserve two-line structure if present
     const titleEl = btn.querySelector('.avi-btn-title');
     const subtextEl = btn.querySelector('.avi-btn-subtext');
 
@@ -293,7 +292,6 @@ function applyButtonState(btn, className, disabled, title, subtext) {
         titleEl.innerText = title;
         subtextEl.innerText = subtext;
     } else {
-        // Fallback for old markup
         btn.innerText = subtext ? `${title} ${subtext}` : title;
     }
 }
@@ -316,13 +314,11 @@ function handleBetAction(panel) {
     const bet = myBets[panel];
     const isFlying = lastStatus && lastStatus.status === 'FLYING';
 
-    // Cash out
     if (isFlying && bet && !bet.cashedOut) {
         socket.emit('cash_out', { panel });
         return;
     }
 
-    // Place bet
     if (!lastStatus || lastStatus.status !== 'WAITING') {
         showToast('Round in progress — wait for next', 'error');
         return;
@@ -370,7 +366,7 @@ socket.on('reconnect', () => {
 });
 
 // ============================================
-// SOCKET — GAME TICK
+// SOCKET — GAME TICK (main game loop)
 // ============================================
 socket.on('betnova_tick', (state) => {
     lastStatus = state;
@@ -378,7 +374,13 @@ socket.on('betnova_tick', (state) => {
     const multiplierEl = document.getElementById('multiplier');
     const statusBadge = document.getElementById('status-badge');
 
+    // ---------- WAITING ----------
     if (state.status === 'WAITING') {
+        // Reset flight tracking
+        flightStartTime = null;
+        flightEndTime = null;
+        lastMultiplier = 1.00;
+
         if (multiplierEl) {
             multiplierEl.innerHTML = `${state.timer}<span>s</span>`;
             multiplierEl.style.color = '#fbbf24';
@@ -387,20 +389,30 @@ socket.on('betnova_tick', (state) => {
         if (statusBadge) statusBadge.innerText = 'Waiting for next round...';
         clearCanvas();
 
-        // Tick sound in last 3 seconds
         if (state.timer !== lastTimerTick && state.timer >= 0 && state.timer <= 3) {
             playSound('tick');
             lastTimerTick = state.timer;
         }
     }
+
+    // ---------- FLYING ----------
     else if (state.status === 'FLYING') {
+        // Capture flight start time on first FLYING tick
+        if (!flightStartTime) {
+            flightStartTime = Date.now();
+        }
+
+        lastMultiplier = state.multiplier;
+
         if (multiplierEl) {
             multiplierEl.innerHTML = `${state.multiplier.toFixed(2)}<span>x</span>`;
             multiplierEl.style.color = '#ffffff';
             multiplierEl.classList.remove('crashed');
         }
         if (statusBadge) statusBadge.innerText = 'In flight — cash out before crash';
-        drawCurve(state.multiplier);
+
+        // Draw the moving curve
+        drawCurve(state.multiplier, false);
 
         // Auto-cashout check
         [1, 2].forEach(panel => {
@@ -414,14 +426,21 @@ socket.on('betnova_tick', (state) => {
             }
         });
     }
+
+    // ---------- CRASHED ----------
     else if (state.status === 'CRASHED') {
+        flightEndTime = Date.now();
+        lastMultiplier = state.multiplier;
+
         if (multiplierEl) {
             multiplierEl.innerHTML = `${state.multiplier.toFixed(2)}<span>x</span>`;
             multiplierEl.style.color = '#ef4444';
             multiplierEl.classList.add('crashed');
         }
         if (statusBadge) statusBadge.innerText = 'FLEW AWAY!';
-        drawCurve(1, true);
+
+        // Redraw with the actual crash multiplier (frozen)
+        drawCurve(state.multiplier, true);
     }
 
     updateActionButton(1);
@@ -429,7 +448,7 @@ socket.on('betnova_tick', (state) => {
 });
 
 // ============================================
-// SOCKET — BALANCE UPDATE
+// SOCKET — BALANCE
 // ============================================
 socket.on('balance_update', (balance) => {
     localStorage.setItem('betnova_balance', balance);
@@ -582,7 +601,6 @@ socket.on('round_reveal', async (data) => {
     }
 });
 
-// Client-side SHA-256 verification
 async function verifySeed(seed, expected) {
     try {
         const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(seed));
@@ -595,7 +613,6 @@ async function verifySeed(seed, expected) {
     }
 }
 
-// Client-side HMAC-SHA256 crash reproduction
 async function recomputeCrash(seed, roundId) {
     try {
         const key = await crypto.subtle.importKey(
@@ -694,7 +711,7 @@ function toggleChat() {
 }
 
 // ============================================
-// PAYHERO — DEPOSIT
+// PAYHERO — DEPOSIT / WITHDRAW
 // ============================================
 async function handleDeposit() {
     if (!currentUser) return showToast('Sign in first', 'error');
@@ -734,9 +751,6 @@ async function handleDeposit() {
     }
 }
 
-// ============================================
-// PAYHERO — WITHDRAW
-// ============================================
 async function handleWithdraw() {
     if (!currentUser) return showToast('Sign in first', 'error');
     const amountEl = document.getElementById('withdraw-amount');
@@ -835,94 +849,155 @@ async function loadHistory() {
 }
 
 // ============================================
-// CANVAS DRAWING
+// CANVAS DRAWING — Exponential moving curve
 // ============================================
 function clearCanvas() {
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
 }
 
-function drawCurve(progress, crashed = false) {
+/**
+ * Draw the Aviator curve.
+ *
+ * @param {number} multiplier - Current multiplier (e.g. 2.45)
+ * @param {boolean} crashed - Whether the round has crashed
+ *
+ * The curve is drawn as:
+ *  - X axis: time-progress normalized to 0..1 (based on multiplier)
+ *  - Y axis: exponential climb (multiplier ^ exponent)
+ *  - The plane sits at the head of the curve
+ *  - The area under the curve is filled with a red gradient
+ */
+function drawCurve(multiplier, crashed = false) {
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
 
-    const startX = 60;
-    const startY = H - 40;
-    const maxX = W - 60;
-    const maxY = 60;
+    // ---------- Geometry ----------
+    const padL = 50;
+    const padR = 50;
+    const padT = 60;
+    const padB = 40;
 
-    // Grid lines
+    const startX = padL;
+    const startY = H - padB;
+    const endX = W - padR;
+    const endY = padT;
+
+    const spanX = endX - startX;
+    const spanY = startY - endY;
+
+    // ---------- Grid ----------
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
     for (let i = 1; i < 6; i++) {
-        const y = startY - (startY - maxY) * (i / 6);
+        const y = startY - spanY * (i / 6);
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(W, y);
         ctx.stroke();
     }
+    for (let i = 1; i < 8; i++) {
+        const x = startX + spanX * (i / 8);
+        ctx.beginPath();
+        ctx.moveTo(x, endY);
+        ctx.lineTo(x, startY);
+        ctx.stroke();
+    }
 
-    // Build curve points
+    // ---------- Normalize multiplier to curve progress ----------
+    // progress = 0 at 1.00x, approaching 1.0 as multiplier grows
+    const safeMul = Math.max(1.00, multiplier);
+    const progress = Math.min(0.98, 1 - Math.pow(1 / safeMul, 1.15));
+
+    // Exponential climb factor — plane rises fast as multiplier grows
+    const climb = Math.pow(safeMul - 1, 0.65);
+
+    // ---------- Build curve points ----------
     const points = [];
-    const steps = Math.max(2, Math.floor(progress * 100));
-    for (let i = 0; i <= steps; i++) {
-        const step = i / 100;
-        const x = startX + (maxX - startX) * step;
-        const y = startY - (startY - maxY) * Math.pow(step, 1.6);
+    const STEPS = 100;
+    for (let i = 0; i <= STEPS; i++) {
+        const t = (i / STEPS) * progress;
+
+        // Curve x position
+        const x = startX + spanX * t;
+
+        // Curve y position — exponential climb normalized by max climb
+        // We compute where this step would land in the (0..progress) range
+        const normalizedT = progress > 0 ? (t / progress) : 0;
+        const climbAtT = Math.pow(safeMul - 1, 0.65) * normalizedT;
+        const yOffset = climbAtT / Math.max(climb, 0.001);
+
+        const y = startY - spanY * yOffset * 0.95;
+
         points.push({ x, y });
     }
 
+    // ---------- Draw ----------
     if (points.length > 1) {
-        // Gradient fill under curve
-        const gradient = ctx.createLinearGradient(0, startY, 0, maxY);
+        const head = points[points.length - 1];
+
+        // 1. Fill under curve (gradient red)
+        const gradient = ctx.createLinearGradient(startX, startY, head.x, head.y);
         if (crashed) {
-            gradient.addColorStop(0, 'rgba(239, 68, 68, 0.35)');
-            gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
+            gradient.addColorStop(0, 'rgba(239, 68, 68, 0.05)');
+            gradient.addColorStop(0.6, 'rgba(239, 68, 68, 0.20)');
+            gradient.addColorStop(1, 'rgba(239, 68, 68, 0.45)');
         } else {
-            gradient.addColorStop(0, 'rgba(255, 45, 85, 0.3)');
-            gradient.addColorStop(1, 'rgba(255, 45, 85, 0)');
+            gradient.addColorStop(0, 'rgba(217, 29, 54, 0.05)');
+            gradient.addColorStop(0.6, 'rgba(217, 29, 54, 0.18)');
+            gradient.addColorStop(1, 'rgba(217, 29, 54, 0.38)');
         }
-        ctx.fillStyle = gradient;
+
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         points.forEach(p => ctx.lineTo(p.x, p.y));
-        ctx.lineTo(points[points.length - 1].x, startY);
+        ctx.lineTo(head.x, startY);
         ctx.closePath();
+        ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Glowing path line
+        // 2. Base curve line (glowing)
         ctx.beginPath();
-        ctx.strokeStyle = crashed ? '#ef4444' : '#ff2d55';
-        ctx.lineWidth = 3;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = crashed
-            ? 'rgba(239, 68, 68, 0.9)'
-            : 'rgba(255, 45, 85, 0.8)';
+        ctx.strokeStyle = crashed ? '#ef4444' : '#d91d36';
+        ctx.lineWidth = 3.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = crashed
+            ? 'rgba(239, 68, 68, 0.85)'
+            : 'rgba(217, 29, 54, 0.85)';
+        points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+        ctx.stroke();
+
+        // 3. Bright accent line on top
+        ctx.beginPath();
+        ctx.strokeStyle = crashed ? '#f87171' : '#ff2d55';
+        ctx.lineWidth = 1.5;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = 'rgba(255, 45, 85, 0.9)';
         points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
         ctx.stroke();
         ctx.shadowBlur = 0;
-    }
 
-    // Plane at the head
-    const head = points[points.length - 1];
-    if (head) {
-        // Particle trail
-        for (let i = 1; i <= 6; i++) {
+        // 4. Particle trail behind the plane
+        for (let i = 1; i <= 8; i++) {
             const idx = points.length - 1 - i;
             if (idx < 0) break;
             const p = points[idx];
-            ctx.fillStyle = `rgba(255, 200, 100, ${0.5 * (1 - i / 6)})`;
+            const alpha = 0.55 * (1 - i / 8);
+            const radius = Math.max(4.5 - i * 0.5, 0.5);
+            ctx.fillStyle = crashed
+                ? `rgba(239, 68, 68, ${alpha})`
+                : `rgba(255, 130, 130, ${alpha})`;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, Math.max(4 - i * 0.5, 0.5), 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        // Rotation angle based on trajectory
+        // 5. Plane sprite at the head
+        const prev = points[points.length - 2];
         let angle = 0;
-        if (points.length > 1) {
-            const prev = points[points.length - 2];
+        if (prev) {
             angle = Math.atan2(head.y - prev.y, head.x - prev.x);
         }
 
@@ -930,32 +1005,31 @@ function drawCurve(progress, crashed = false) {
         ctx.translate(head.x, head.y);
         ctx.rotate(angle);
 
-        // Plane color
-        ctx.fillStyle = crashed ? '#ef4444' : '#ff2d55';
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = 'rgba(255, 45, 85, 0.8)';
+        ctx.fillStyle = crashed ? '#ef4444' : '#d91d36';
+        ctx.shadowBlur = 16;
+        ctx.shadowColor = 'rgba(217, 29, 54, 0.9)';
 
-        // Main body (triangle)
+        // Body
         ctx.beginPath();
-        ctx.moveTo(16, 0);
-        ctx.lineTo(-6, -8);
-        ctx.lineTo(-2, 0);
-        ctx.lineTo(-6, 8);
+        ctx.moveTo(18, 0);
+        ctx.lineTo(-8, -9);
+        ctx.lineTo(-3, 0);
+        ctx.lineTo(-8, 9);
         ctx.closePath();
         ctx.fill();
 
         // Top wing
         ctx.beginPath();
-        ctx.moveTo(2, -2);
-        ctx.lineTo(-4, -14);
+        ctx.moveTo(3, -2);
+        ctx.lineTo(-5, -16);
         ctx.lineTo(-1, -2);
         ctx.closePath();
         ctx.fill();
 
         // Bottom wing
         ctx.beginPath();
-        ctx.moveTo(2, 2);
-        ctx.lineTo(-4, 14);
+        ctx.moveTo(3, 2);
+        ctx.lineTo(-5, 16);
         ctx.lineTo(-1, 2);
         ctx.closePath();
         ctx.fill();
@@ -972,7 +1046,6 @@ document.addEventListener('DOMContentLoaded', () => {
     resizeCanvas();
     checkSession();
 
-    // Set initial sound button state
     const btn = document.getElementById('sound-toggle');
     if (btn) {
         btn.innerHTML = soundEnabled
@@ -981,10 +1054,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.classList.toggle('muted', !soundEnabled);
     }
 
-    // Periodic balance refresh
     setInterval(refreshBalance, 15000);
 
-    // Auto-refresh history modal if open
     setInterval(() => {
         const hist = document.getElementById('history-modal');
         if (hist && !hist.classList.contains('hidden')) {
