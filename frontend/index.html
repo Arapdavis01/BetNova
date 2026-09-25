@@ -2,602 +2,549 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BetNova — Premium Crash Gaming</title>
-    <meta name="description" content="Play BetNova's provably fair crash game. Instant M-Pesa deposits. Cash out before the plane flies away.">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BetNova — Premium Gaming Platform</title>
+    <meta name="description" content="Play Aviator, Crash, and more. Provably fair. Instant M-Pesa deposits.">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@600;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shell.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="shell-body">
 
-    <!-- ============ HEADER ============ -->
-    <header class="glass-header sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center">
+<!-- ============================================ -->
+<!-- TOP NAV (sticky) -->
+<!-- ============================================ -->
+<header class="shell-topnav">
+    <div class="shell-topnav-inner">
+        <!-- Left: Logo + Hamburger -->
+        <div class="shell-topnav-left">
+            <button class="shell-hamburger" onclick="toggleMobileMenu()" aria-label="Menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <a href="/" class="shell-logo">
+                <span class="shell-logo-red">Bet</span><span class="shell-logo-white">Nova</span>
+            </a>
+        </div>
 
-            <!-- Logo -->
-            <div class="flex items-center gap-3">
-                <div class="logo-mark"></div>
-                <h1 class="text-2xl font-black tracking-tight">
-                    <span class="text-white">Bet</span><span class="text-gradient-red">Nova</span>
-                </h1>
-                <span class="hidden md:inline-flex items-center gap-1.5 ml-3 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30 rounded-full">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Live
-                </span>
+        <!-- Center: Desktop nav links -->
+        <nav class="shell-nav-links">
+            <a href="/" class="shell-nav-link active">Home</a>
+            <a href="/aviator" class="shell-nav-link">Aviator <span class="badge-new">NEW</span></a>
+            <a href="/crash" class="shell-nav-link">Crash</a>
+            <a href="#" class="shell-nav-link">Casino <span class="badge-new">NEW</span></a>
+            <a href="#" class="shell-nav-link">Virtuals</a>
+            <a href="#" class="shell-nav-link">Promotions</a>
+            <a href="#" class="shell-nav-link">Jackpots</a>
+        </nav>
+
+        <!-- Right: Auth / Wallet / User -->
+        <div class="shell-topnav-right">
+            <!-- Logged out -->
+            <div id="shell-auth-zone" class="shell-auth-zone">
+                <button class="shell-btn shell-btn-ghost" onclick="openModal('signin-modal')">Login</button>
+                <button class="shell-btn shell-btn-green" onclick="openModal('signup-modal')">Register</button>
             </div>
 
-            <!-- Auth zone (when logged out) -->
-            <div id="auth-zone" class="flex gap-2">
-                <button onclick="openModal('signin-modal')" class="btn-ghost">Sign In</button>
-                <button onclick="openModal('signup-modal')" class="btn-primary">Create Account</button>
-            </div>
-
-            <!-- User zone (when logged in) -->
-            <div id="user-zone" class="hidden items-center gap-2 md:gap-3">
-                <button onclick="openModal('deposit-modal')" class="btn-deposit">
-                    <i class="fa-solid fa-plus"></i> Deposit
-                </button>
-                <button onclick="openModal('withdraw-modal')" class="btn-withdraw hidden md:inline-flex">
-                    <i class="fa-solid fa-arrow-up-from-bracket"></i> Withdraw
-                </button>
-                <div class="wallet-chip">
-                    <span class="text-[10px] uppercase tracking-wider text-gray-400 block leading-none">Balance</span>
-                    <span id="balance-display" class="text-green-400 font-black text-sm leading-tight">KES 0.00</span>
+            <!-- Logged in -->
+            <div id="shell-user-zone" class="shell-user-zone hidden">
+                <div class="shell-wallet-chip" onclick="openModal('deposit-modal')">
+                    <i class="fa-solid fa-wallet"></i>
+                    <span id="shell-balance">0.00</span>
+                    <span class="shell-currency">KES</span>
                 </div>
-                <div class="relative group">
-                    <button class="user-avatar" id="user-display">U</button>
-                    <div class="user-menu">
-                        <div class="px-3 py-2 border-b border-white/10">
-                            <p class="text-xs text-gray-400">Signed in as</p>
-                            <p id="user-display-name" class="font-bold text-sm">User</p>
+                <button class="shell-icon-btn" onclick="openModal('deposit-modal')" title="Deposit">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+                <div class="shell-user-menu-wrap">
+                    <button class="shell-avatar" id="shell-avatar" onclick="toggleUserMenu()">U</button>
+                    <div class="shell-user-menu hidden" id="shell-user-menu">
+                        <div class="shell-user-menu-header">
+                            <p class="shell-user-menu-label">Signed in as</p>
+                            <p id="shell-username" class="shell-user-menu-name">User</p>
                         </div>
-                        <button onclick="openModal('deposit-modal')" class="user-menu-item">
+                        <button class="shell-user-menu-item" onclick="openModal('deposit-modal')">
                             <i class="fa-solid fa-credit-card"></i> Deposit
                         </button>
-                        <button onclick="openModal('withdraw-modal')" class="user-menu-item">
+                        <button class="shell-user-menu-item" onclick="openModal('withdraw-modal')">
                             <i class="fa-solid fa-money-bill-transfer"></i> Withdraw
                         </button>
-                        <button onclick="openHistory()" class="user-menu-item">
-                            <i class="fa-solid fa-clock-rotate-left"></i> History
+                        <button class="shell-user-menu-item" onclick="openModal('history-modal')">
+                            <i class="fa-solid fa-clock-rotate-left"></i> My Bets
                         </button>
-                        <button onclick="openModal('responsible-modal')" class="user-menu-item">
+                        <button class="shell-user-menu-item" onclick="openModal('responsible-modal')">
                             <i class="fa-solid fa-shield-halved"></i> Responsible Gambling
                         </button>
-                        <button onclick="openModal('kyc-modal')" class="user-menu-item">
+                        <button class="shell-user-menu-item" onclick="openModal('kyc-modal')">
                             <i class="fa-solid fa-envelope"></i> Verify Email
                         </button>
-                        <button onclick="openModal('support-modal')" class="user-menu-item">
-                            <i class="fa-solid fa-headset"></i> Contact Support
-                        </button>
-                        <button onclick="handleLogout()" class="user-menu-item text-red-400">
+                        <button class="shell-user-menu-item shell-user-menu-item-danger" onclick="handleLogout()">
                             <i class="fa-solid fa-right-from-bracket"></i> Log Out
                         </button>
                     </div>
                 </div>
             </div>
         </div>
-    </header>
+    </div>
+</header>
 
-    <!-- ============ MAIN ============ -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
+<!-- Mobile slide-out menu -->
+<aside class="shell-mobile-menu" id="mobile-menu">
+    <div class="shell-mobile-header">
+        <span class="shell-logo">
+            <span class="shell-logo-red">Bet</span><span class="shell-logo-white">Nova</span>
+        </span>
+        <button onclick="toggleMobileMenu()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <nav class="shell-mobile-links">
+        <a href="/"><i class="fa-solid fa-house"></i> Home</a>
+        <a href="/aviator"><i class="fa-solid fa-plane-up"></i> Aviator</a>
+        <a href="/crash"><i class="fa-solid fa-chart-line"></i> Crash</a>
+        <a href="#"><i class="fa-solid fa-dice"></i> Casino</a>
+        <a href="#"><i class="fa-solid fa-futbol"></i> Virtuals</a>
+        <a href="#"><i class="fa-solid fa-gift"></i> Promotions</a>
+        <a href="#"><i class="fa-solid fa-trophy"></i> Jackpots</a>
+        <a href="#"><i class="fa-solid fa-headset"></i> Support</a>
+    </nav>
+</aside>
+<div class="shell-mobile-overlay hidden" id="mobile-overlay" onclick="toggleMobileMenu()"></div>
 
-        <!-- LEFT: Game + Betting -->
-        <div class="lg:col-span-2 flex flex-col gap-5">
+<!-- ============================================ -->
+<!-- MAIN CONTENT -->
+<!-- ============================================ -->
+<main class="shell-main">
 
-            <!-- Game Canvas -->
-            <div class="relative game-panel h-[420px] flex flex-col items-center justify-center overflow-hidden">
-
-                <div id="game-lock" class="absolute inset-0 bg-[#0a0e1a]/95 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
-                    <div class="lock-icon">
-                        <i class="fa-solid fa-lock"></i>
-                    </div>
-                    <h3 class="text-xl font-bold mt-4">Sign In to Play</h3>
-                    <p class="text-sm text-gray-400 max-w-xs mt-2">Create your account or sign in to join the live round.</p>
-                    <button onclick="openModal('signup-modal')" class="btn-primary mt-5">Create Account</button>
-                </div>
-
-                <div class="absolute top-6 text-center z-10 pointer-events-none">
-                    <div class="text-[10px] uppercase tracking-[0.3em] text-gray-500 mb-1" id="status-text">Awaiting Round</div>
-                    <h2 id="multiplier-text" class="multiplier-display">1.00<span class="text-4xl">x</span></h2>
-                </div>
-
-                <canvas id="flight-canvas" class="absolute inset-0 w-full h-full"></canvas>
-
-                <div class="absolute bottom-4 left-4 flex items-center gap-2 text-xs text-gray-500">
-                    <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                    <span id="active-count">0</span> players in this round
-                </div>
-
-                <div class="absolute bottom-4 right-4 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-gray-500">
-                    <i class="fa-solid fa-shield-halved"></i>
-                    Provably Fair
-                </div>
-            </div>
-
-            <!-- Betting Panel -->
-            <div class="relative game-panel p-5">
-                <div id="bet-lock" class="absolute inset-0 bg-[#0a0e1a]/95 backdrop-blur-sm z-40 flex items-center justify-center rounded-2xl">
-                    <p class="text-sm font-medium text-gray-400">Sign in to place bets</p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
-
-                    <div class="md:col-span-3">
-                        <label class="input-label">Bet Amount (KES)</label>
-                        <div class="relative">
-                            <input type="number" id="bet-input" value="10" min="10" step="10" class="input-field pl-3 pr-14">
-                            <span class="input-suffix">KES</span>
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-3">
-                        <label class="input-label">Quick Stake</label>
-                        <div class="grid grid-cols-4 gap-1">
-                            <button onclick="setBet(10)" class="chip">10</button>
-                            <button onclick="setBet(50)" class="chip">50</button>
-                            <button onclick="setBet(100)" class="chip">100</button>
-                            <button onclick="setBet(500)" class="chip">500</button>
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-3">
-                        <label class="input-label">Auto Cashout</label>
-                        <div class="relative">
-                            <input type="number" id="auto-cashout" min="1.01" step="0.01" placeholder="Off" class="input-field pl-3 pr-8">
-                            <span class="input-suffix">x</span>
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-3 flex items-end">
-                        <div class="grid grid-cols-1 gap-2 w-full">
-                            <button id="place-bet-btn" class="btn-play">Place Bet</button>
-                            <button id="cashout-btn" disabled class="btn-cashout">Cash Out</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-4 flex justify-between items-center text-xs text-gray-500 border-t border-white/5 pt-3">
-                    <span id="bet-status">Ready to bet</span>
-                    <span>Min: KES 10 · Max: KES 100,000</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- RIGHT: Feed, Leaderboard, Chat, Trust -->
-        <aside class="flex flex-col gap-5">
-
-            <!-- Recent Crashes -->
-            <div class="game-panel p-4">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="section-title">
-                        <i class="fa-solid fa-chart-line"></i> Recent Crashes
-                    </h3>
-                    <span class="text-[10px] text-gray-500 uppercase tracking-wider">Last 20</span>
-                </div>
-                <div id="crash-history" class="flex flex-wrap gap-1.5">
-                    <span class="text-xs text-gray-500">Loading...</span>
-                </div>
-            </div>
-
-            <!-- Leaderboard -->
-            <div class="game-panel p-4">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="section-title">
-                        <i class="fa-solid fa-trophy"></i> Top Winners
-                    </h3>
-                    <div class="flex gap-1">
-                        <button onclick="loadLeaderboard('daily')" class="tab-btn active" data-period="daily">24h</button>
-                        <button onclick="loadLeaderboard('weekly')" class="tab-btn" data-period="weekly">7d</button>
-                        <button onclick="loadLeaderboard('alltime')" class="tab-btn" data-period="alltime">All</button>
-                    </div>
-                </div>
-                <div id="leaderboard-list" class="space-y-1.5 text-xs">
-                    <p class="text-gray-500 text-center py-4">Loading...</p>
-                </div>
-            </div>
-
-            <!-- Live Activity Feed -->
-            <div class="game-panel p-4 flex flex-col" style="max-height: 340px;">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="section-title">
-                        <i class="fa-solid fa-bolt"></i> Live Activity
-                    </h3>
-                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                </div>
-                <div id="feed-container" class="flex-1 overflow-y-auto space-y-1.5 pr-1 text-xs">
-                    <div class="feed-item">
-                        <span class="text-gray-500">Connecting to server...</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Live Chat -->
-            <div class="game-panel p-4 flex flex-col" style="height: 380px;">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="section-title">
-                        <i class="fa-solid fa-comments"></i> Live Chat
-                    </h3>
-                    <span class="text-[10px] text-green-400 flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
-                        <span id="chat-online">0</span> online
-                    </span>
-                </div>
-                <div id="chat-messages" class="flex-1 overflow-y-auto space-y-2 pr-1 text-xs mb-2">
-                    <p class="text-gray-500 text-center py-4">Connecting...</p>
-                </div>
-                <div class="flex gap-1">
-                    <input id="chat-input" type="text" maxlength="200" placeholder="Say something..."
-                           class="input-field py-2 text-xs"
-                           onkeydown="if(event.key==='Enter') sendChat()">
-                    <button onclick="sendChat()" class="btn-primary px-3 py-2 text-xs" title="Send">
-                        <i class="fa-solid fa-paper-plane"></i>
+    <!-- ============ HERO BANNER ============ -->
+    <section class="shell-hero">
+        <div class="shell-hero-inner">
+            <div class="shell-hero-text">
+                <span class="shell-hero-badge">
+                    <i class="fa-solid fa-bolt"></i> INSTANT M-PESA
+                </span>
+                <h1>Play. Win. <span class="shell-hero-highlight">Cash Out.</span></h1>
+                <p>Kenya's fastest growing crash gaming platform. Provably fair. Instant deposits and withdrawals.</p>
+                <div class="shell-hero-cta">
+                    <a href="/aviator" class="shell-btn shell-btn-green shell-btn-lg">
+                        <i class="fa-solid fa-plane-up"></i> Play Aviator
+                    </a>
+                    <button onclick="openModal('signup-modal')" class="shell-btn shell-btn-outline shell-btn-lg">
+                        Create Account
                     </button>
                 </div>
             </div>
+            <div class="shell-hero-visual">
+                <div class="shell-hero-plane">
+                    <i class="fa-solid fa-plane"></i>
+                </div>
+                <div class="shell-hero-multiplier">3.35<span>x</span></div>
+            </div>
+        </div>
+    </section>
 
-            <!-- Provably Fair -->
-            <div class="game-panel p-4">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="section-title">
-                        <i class="fa-solid fa-shield-halved"></i> Provably Fair
+    <!-- ============ CATEGORY TABS ============ -->
+    <section class="shell-categories">
+        <div class="shell-categories-scroll">
+            <button class="shell-cat-btn active" data-cat="featured">
+                <i class="fa-solid fa-star"></i>
+                <span>Featured</span>
+            </button>
+            <button class="shell-cat-btn" data-cat="crash">
+                <i class="fa-solid fa-plane-up"></i>
+                <span>Crash</span>
+            </button>
+            <button class="shell-cat-btn" data-cat="casino">
+                <i class="fa-solid fa-dice"></i>
+                <span>Casino</span>
+            </button>
+            <button class="shell-cat-btn" data-cat="virtuals">
+                <i class="fa-solid fa-futbol"></i>
+                <span>Virtuals</span>
+            </button>
+            <button class="shell-cat-btn" data-cat="live">
+                <i class="fa-solid fa-circle-dot"></i>
+                <span>Live Games</span>
+            </button>
+        </div>
+    </section>
+
+    <!-- ============ GAME GRID ============ -->
+    <section class="shell-games-section">
+        <div class="shell-section-header">
+            <h2 class="shell-section-title">
+                <span class="shell-section-accent"></span>
+                <span id="games-section-title">Featured Games</span>
+            </h2>
+            <a href="#" class="shell-section-link">See all <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+
+        <div class="shell-games-grid">
+            <!-- Aviator -->
+            <a href="/aviator" class="shell-game-card shell-game-card-featured" data-cat="crash">
+                <div class="shell-game-thumb" style="background: linear-gradient(135deg, #ff0044, #7a001f);">
+                    <div class="shell-game-badge-live">
+                        <span></span> LIVE
+                    </div>
+                    <div class="shell-game-icon">
+                        <i class="fa-solid fa-plane"></i>
+                    </div>
+                    <div class="shell-game-multiplier">3.35x</div>
+                </div>
+                <div class="shell-game-info">
+                    <h3>Aviator</h3>
+                    <p>Spribe · Crash</p>
+                    <div class="shell-game-players">
+                        <i class="fa-solid fa-users"></i> 3,367 playing
+                    </div>
+                </div>
+            </a>
+
+            <!-- Crash Classic -->
+            <a href="/crash" class="shell-game-card" data-cat="crash">
+                <div class="shell-game-thumb" style="background: linear-gradient(135deg, #3b82f6, #1e3a8a);">
+                    <div class="shell-game-icon"><i class="fa-solid fa-chart-line"></i></div>
+                    <div class="shell-game-multiplier">2.41x</div>
+                </div>
+                <div class="shell-game-info">
+                    <h3>Crash Classic</h3>
+                    <p>BetNova · Crash</p>
+                    <div class="shell-game-players">
+                        <i class="fa-solid fa-users"></i> 1,203 playing
+                    </div>
+                </div>
+            </a>
+
+            <!-- JetX -->
+            <a href="#" class="shell-game-card" data-cat="crash">
+                <div class="shell-game-thumb" style="background: linear-gradient(135deg, #8b5cf6, #4c1d95);">
+                    <div class="shell-game-icon"><i class="fa-solid fa-jet-fighter"></i></div>
+                    <div class="shell-game-multiplier">1.87x</div>
+                </div>
+                <div class="shell-game-info">
+                    <h3>JetX</h3>
+                    <p>Smartsoft · Crash</p>
+                    <div class="shell-game-players">
+                        <i class="fa-solid fa-users"></i> 892 playing
+                    </div>
+                </div>
+            </a>
+
+            <!-- Dice -->
+            <a href="#" class="shell-game-card" data-cat="casino">
+                <div class="shell-game-thumb" style="background: linear-gradient(135deg, #f59e0b, #92400e);">
+                    <div class="shell-game-icon"><i class="fa-solid fa-dice"></i></div>
+                </div>
+                <div class="shell-game-info">
+                    <h3>Dice Roll</h3>
+                    <p>BetNova · Casino</p>
+                    <div class="shell-game-players">
+                        <i class="fa-solid fa-users"></i> 546 playing
+                    </div>
+                </div>
+            </a>
+
+            <!-- Plinko -->
+            <a href="#" class="shell-game-card" data-cat="casino">
+                <div class="shell-game-thumb" style="background: linear-gradient(135deg, #06b6d4, #0e7490);">
+                    <div class="shell-game-icon"><i class="fa-solid fa-circle-nodes"></i></div>
+                </div>
+                <div class="shell-game-info">
+                    <h3>Plinko</h3>
+                    <p>BetNova · Casino</p>
+                    <div class="shell-game-players">
+                        <i class="fa-solid fa-users"></i> 421 playing
+                    </div>
+                </div>
+            </a>
+
+            <!-- Virtual Football -->
+            <a href="#" class="shell-game-card" data-cat="virtuals">
+                <div class="shell-game-thumb" style="background: linear-gradient(135deg, #10b981, #065f46);">
+                    <div class="shell-game-icon"><i class="fa-solid fa-futbol"></i></div>
+                </div>
+                <div class="shell-game-info">
+                    <h3>Virtual Football</h3>
+                    <p>BetNova · Virtuals</p>
+                    <div class="shell-game-players">
+                        <i class="fa-solid fa-users"></i> 218 playing
+                    </div>
+                </div>
+            </a>
+
+            <!-- Mines -->
+            <a href="#" class="shell-game-card" data-cat="casino">
+                <div class="shell-game-thumb" style="background: linear-gradient(135deg, #ec4899, #831843);">
+                    <div class="shell-game-icon"><i class="fa-solid fa-bomb"></i></div>
+                </div>
+                <div class="shell-game-info">
+                    <h3>Mines</h3>
+                    <p>BetNova · Casino</p>
+                    <div class="shell-game-players">
+                        <i class="fa-solid fa-users"></i> 312 playing
+                    </div>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- ============ LIVE JACKPOT TICKER ============ -->
+    <section class="shell-jackpot-banner">
+        <div class="shell-jackpot-inner">
+            <div class="shell-jackpot-left">
+                <span class="shell-jackpot-pulse"></span>
+                <div>
+                    <p class="shell-jackpot-label">LIVE JACKPOT</p>
+                    <h3 class="shell-jackpot-amount">
+                        KES <span id="jackpot-amount">1,247,890</span>
                     </h3>
-                    <button onclick="openModal('fairness-modal')" class="text-[10px] text-red-400 hover:underline uppercase tracking-wider font-bold">
-                        Verify <i class="fa-solid fa-arrow-right"></i>
-                    </button>
-                </div>
-                <div class="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                        <p class="text-gray-500 mb-1">Round</p>
-                        <p id="pf-round" class="font-mono font-bold text-white">—</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-500 mb-1">Seed Hash</p>
-                        <p id="pf-hash" class="font-mono text-[10px] text-gray-400 truncate">—</p>
-                    </div>
                 </div>
             </div>
-
-            <!-- Trust Badges -->
-            <div class="game-panel p-4">
-                <h3 class="section-title mb-3">
-                    <i class="fa-solid fa-lock"></i> Trusted & Secure
-                </h3>
-                <div class="grid grid-cols-2 gap-2 text-[10px] text-gray-400">
-                    <div class="flex items-center gap-1.5">
-                        <i class="fa-solid fa-circle-check text-green-400"></i> BCLB Licensed
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <i class="fa-solid fa-circle-check text-green-400"></i> M-Pesa Instant
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <i class="fa-solid fa-circle-check text-green-400"></i> Provably Fair
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <i class="fa-solid fa-circle-check text-green-400"></i> 18+ Only
-                    </div>
-                </div>
-            </div>
-        </aside>
-    </main>
-
-    <!-- ============ FOOTER ============ -->
-    <footer class="border-t border-white/5 mt-6">
-        <div class="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 md:grid-cols-4 gap-6 text-xs text-gray-500">
-            <div>
-                <h4 class="text-white font-bold mb-2">BetNova</h4>
-                <p>Premium crash gaming. Provably fair. Instant M-Pesa.</p>
-                <p class="mt-2">Licensed by BCLB · License #BCLB/2026/XXXX</p>
-            </div>
-            <div>
-                <h4 class="text-white font-bold mb-2">Quick Links</h4>
-                <a href="#" class="block hover:text-white">Terms of Service</a>
-                <a href="#" class="block hover:text-white">Privacy Policy</a>
-                <a href="#" class="block hover:text-white">Responsible Gambling</a>
-            </div>
-            <div>
-                <h4 class="text-white font-bold mb-2">Support</h4>
-                <a href="#" class="block hover:text-white">Help Center</a>
-                <a href="#" class="block hover:text-white">Contact Us</a>
-                <a href="#" class="block hover:text-white">FAQs</a>
-            </div>
-            <div>
-                <h4 class="text-white font-bold mb-2">Play Responsibly</h4>
-                <p>Gambling should be fun, not a way to make money. Only bet what you can afford to lose.</p>
-                <p class="mt-2 text-red-400 font-bold flex items-center gap-1.5">
-                    <i class="fa-solid fa-ban"></i> 18+
-                </p>
+            <div class="shell-jackpot-right">
+                <p class="shell-jackpot-desc">Winner takes all every day at midnight</p>
+                <a href="#" class="shell-btn shell-btn-yellow">
+                    Play to Win <i class="fa-solid fa-arrow-right"></i>
+                </a>
             </div>
         </div>
-        <div class="border-t border-white/5 py-4 text-center text-[10px] text-gray-600">
-            © 2026 BetNova Gaming Ltd. All rights reserved.
+    </section>
+
+    <!-- ============ LIVE FEED / SOCIAL PROOF ============ -->
+    <section class="shell-live-feed">
+        <div class="shell-section-header">
+            <h2 class="shell-section-title">
+                <span class="shell-section-accent"></span>
+                Live Wins
+            </h2>
+            <span class="shell-live-indicator">
+                <span></span> LIVE
+            </span>
         </div>
-    </footer>
 
-    <!-- ============ MODALS ============ -->
-
-    <!-- Sign In -->
-    <div id="signin-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <button onclick="closeModal('signin-modal')" class="modal-close">&times;</button>
-            <div class="modal-icon">
-                <i class="fa-solid fa-right-to-bracket"></i>
+        <div class="shell-live-wins" id="live-wins">
+            <div class="shell-win-card">
+                <div class="shell-win-avatar" style="background:#ef4444">J</div>
+                <div class="shell-win-info">
+                    <p class="shell-win-user">john****</p>
+                    <p class="shell-win-game">Aviator · 3.35x</p>
+                </div>
+                <div class="shell-win-amount">+KES 6,700</div>
             </div>
-            <h2 class="modal-title">Welcome Back</h2>
-            <p class="modal-subtitle">Sign in to continue playing</p>
-            <form onsubmit="handleAuth(event, 'signin')" class="space-y-3 mt-5">
-                <input id="signin-user" type="text" placeholder="Username" required class="input-field">
-                <input id="signin-pass" type="password" placeholder="Password" required class="input-field">
-                <button type="submit" class="btn-primary w-full mt-2">Sign In</button>
-            </form>
-            <p class="text-center text-xs text-gray-500 mt-4">
-                No account?
-                <button onclick="closeModal('signin-modal'); openModal('signup-modal')" class="text-red-400 hover:underline">Create one</button>
-            </p>
-        </div>
-    </div>
-
-    <!-- Sign Up -->
-    <div id="signup-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <button onclick="closeModal('signup-modal')" class="modal-close">&times;</button>
-            <div class="modal-icon">
-                <i class="fa-solid fa-user-plus"></i>
+            <div class="shell-win-card">
+                <div class="shell-win-avatar" style="background:#10b981">M</div>
+                <div class="shell-win-info">
+                    <p class="shell-win-user">mary****</p>
+                    <p class="shell-win-game">JetX · 8.12x</p>
+                </div>
+                <div class="shell-win-amount">+KES 24,360</div>
             </div>
-            <h2 class="modal-title">Create Account</h2>
-            <p class="modal-subtitle">Join thousands of players</p>
-            <form onsubmit="handleAuth(event, 'signup')" class="space-y-3 mt-5">
-                <input id="signup-user" type="text" placeholder="Username" required minlength="3" class="input-field">
-                <input id="signup-pass" type="password" placeholder="Password (min 4 chars)" required minlength="4" class="input-field">
-                <div class="flex items-start gap-2 text-xs text-gray-400 mt-3">
-                    <input type="checkbox" id="age-check" required class="mt-0.5 accent-red-500">
-                    <label for="age-check">I confirm I am 18 years or older and accept the Terms of Service</label>
+            <div class="shell-win-card">
+                <div class="shell-win-avatar" style="background:#3b82f6">D</div>
+                <div class="shell-win-info">
+                    <p class="shell-win-user">danc****</p>
+                    <p class="shell-win-game">Aviator · 1.87x</p>
                 </div>
-                <button type="submit" class="btn-primary w-full mt-2">Create Account</button>
-            </form>
-            <p class="text-center text-xs text-gray-500 mt-4">
-                Already have an account?
-                <button onclick="closeModal('signup-modal'); openModal('signin-modal')" class="text-red-400 hover:underline">Sign in</button>
-            </p>
-        </div>
-    </div>
-
-    <!-- Deposit -->
-    <div id="deposit-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <button onclick="closeModal('deposit-modal')" class="modal-close">&times;</button>
-            <div class="modal-icon">
-                <i class="fa-solid fa-credit-card"></i>
+                <div class="shell-win-amount">+KES 3,740</div>
             </div>
-            <h2 class="modal-title">Deposit Funds</h2>
-            <p class="modal-subtitle">Instant M-Pesa STK Push</p>
-            <div class="space-y-3 mt-5">
-                <div>
-                    <label class="input-label">Amount (KES)</label>
-                    <input id="deposit-amount" type="number" value="100" min="10" max="150000" step="10" class="input-field">
+            <div class="shell-win-card">
+                <div class="shell-win-avatar" style="background:#f59e0b">A</div>
+                <div class="shell-win-info">
+                    <p class="shell-win-user">alex****</p>
+                    <p class="shell-win-game">Crash · 2.41x</p>
                 </div>
-                <div>
-                    <label class="input-label">M-Pesa Phone Number</label>
-                    <input id="deposit-phone" type="tel" placeholder="0712345678" class="input-field">
-                </div>
-                <div class="grid grid-cols-4 gap-1">
-                    <button onclick="setDeposit(50)" class="chip">50</button>
-                    <button onclick="setDeposit(100)" class="chip">100</button>
-                    <button onclick="setDeposit(500)" class="chip">500</button>
-                    <button onclick="setDeposit(1000)" class="chip">1000</button>
-                </div>
-                <button onclick="handleDeposit()" class="btn-primary w-full mt-2">Send M-Pesa Request</button>
-                <p class="text-[10px] text-gray-500 text-center mt-2">
-                    You will receive a PIN prompt on your phone. Enter your M-Pesa PIN to complete the deposit.
-                </p>
+                <div class="shell-win-amount">+KES 4,820</div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <!-- Withdraw -->
-    <div id="withdraw-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <button onclick="closeModal('withdraw-modal')" class="modal-close">&times;</button>
-            <div class="modal-icon">
-                <i class="fa-solid fa-money-bill-transfer"></i>
-            </div>
-            <h2 class="modal-title">Withdraw Funds</h2>
-            <p class="modal-subtitle">Sent to M-Pesa within minutes</p>
-            <div class="space-y-3 mt-5">
-                <div>
-                    <label class="input-label">Amount (KES)</label>
-                    <input id="withdraw-amount" type="number" value="100" min="50" step="10" class="input-field">
-                </div>
-                <div>
-                    <label class="input-label">M-Pesa Phone Number</label>
-                    <input id="withdraw-phone" type="tel" placeholder="0712345678" class="input-field">
-                </div>
-                <button onclick="handleWithdraw()" class="btn-primary w-full mt-2">Withdraw to M-Pesa</button>
-                <p class="text-[10px] text-gray-500 text-center mt-2">
-                    Minimum withdrawal: KES 50 · Processed within 5 minutes
-                </p>
-            </div>
-        </div>
-    </div>
-
-    <!-- History -->
-    <div id="history-modal" class="modal-overlay hidden">
-        <div class="modal-card max-w-2xl">
-            <button onclick="closeModal('history-modal')" class="modal-close">&times;</button>
-            <div class="modal-icon">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-            </div>
-            <h2 class="modal-title">Bet History</h2>
-            <p class="modal-subtitle">Your recent bets and outcomes</p>
-            <div id="history-list" class="mt-5 max-h-96 overflow-y-auto space-y-2">
-                <p class="text-sm text-gray-500 text-center py-8">No bets yet</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Provably Fair Verification -->
-    <div id="fairness-modal" class="modal-overlay hidden">
-        <div class="modal-card max-w-2xl">
-            <button onclick="closeModal('fairness-modal')" class="modal-close">&times;</button>
-            <div class="modal-icon">
+    <!-- ============ TRUST BADGES ============ -->
+    <section class="shell-trust">
+        <div class="shell-trust-grid">
+            <div class="shell-trust-card">
                 <i class="fa-solid fa-shield-halved"></i>
+                <h4>BCLB Licensed</h4>
+                <p>Fully regulated and compliant</p>
             </div>
-            <h2 class="modal-title">Provably Fair Verification</h2>
-            <p class="modal-subtitle">Every round is cryptographically verifiable</p>
-
-            <div class="mt-5 p-3 bg-black/30 rounded-lg border border-white/10 text-xs text-gray-300 leading-relaxed">
-                <p class="mb-2 flex items-center gap-2">
-                    <i class="fa-solid fa-circle-info text-red-400"></i>
-                    <strong class="text-white">How it works</strong>
-                </p>
-                <p class="mb-2">Before each round, we generate a secret server seed and publish its SHA-256 hash. The crash point is derived from this seed using HMAC-SHA256. After the round crashes, we reveal the seed. You can verify that the hash matches and recompute the crash point yourself.</p>
+            <div class="shell-trust-card">
+                <i class="fa-solid fa-bolt"></i>
+                <h4>Instant M-Pesa</h4>
+                <p>Deposits in seconds</p>
             </div>
-
-            <div class="mt-4 space-y-3">
-                <div>
-                    <label class="input-label">Round</label>
-                    <div id="verify-round" class="font-mono text-white text-sm">—</div>
-                </div>
-                <div>
-                    <label class="input-label">Committed Hash (SHA-256)</label>
-                    <div id="verify-hash" class="font-mono text-[10px] text-gray-400 break-all">—</div>
-                </div>
-                <div>
-                    <label class="input-label">Revealed Seed</label>
-                    <div id="verify-seed" class="font-mono text-[10px] text-gray-400 break-all">Waiting for reveal...</div>
-                </div>
-                <div>
-                    <label class="input-label">Computed Crash Point</label>
-                    <div id="verify-crash" class="font-mono text-green-400 text-sm font-bold">—</div>
-                </div>
+            <div class="shell-trust-card">
+                <i class="fa-solid fa-lock"></i>
+                <h4>Provably Fair</h4>
+                <p>SHA-256 verifiable rounds</p>
             </div>
-
-            <div id="verify-result" class="mt-4 text-xs text-gray-500">
-                Awaiting round completion...
-            </div>
-        </div>
-    </div>
-
-    <!-- Responsible Gambling -->
-    <div id="responsible-modal" class="modal-overlay hidden">
-        <div class="modal-card max-w-md">
-            <button onclick="closeModal('responsible-modal')" class="modal-close">&times;</button>
-            <div class="modal-icon">
-                <i class="fa-solid fa-shield-halved"></i>
-            </div>
-            <h2 class="modal-title">Responsible Gambling</h2>
-            <p class="modal-subtitle">Set limits. Stay in control.</p>
-
-            <div class="space-y-4 mt-5">
-                <div>
-                    <label class="input-label">Daily Deposit Limit (KES)</label>
-                    <input id="limit-deposit" type="number" min="0" placeholder="No limit" class="input-field">
-                </div>
-                <div>
-                    <label class="input-label">Daily Wager Limit (KES)</label>
-                    <input id="limit-wager" type="number" min="0" placeholder="No limit" class="input-field">
-                </div>
-                <div>
-                    <label class="input-label">Session Time Limit (minutes)</label>
-                    <input id="limit-session" type="number" min="0" placeholder="No limit" class="input-field">
-                </div>
-                <button onclick="saveLimits()" class="btn-primary w-full">
-                    <i class="fa-solid fa-floppy-disk"></i> Save Limits
-                </button>
-
-                <div class="border-t border-white/10 pt-4 mt-4">
-                    <h3 class="text-sm font-bold text-red-400 mb-2 flex items-center gap-2">
-                        <i class="fa-solid fa-circle-exclamation"></i> Self-Exclusion
-                    </h3>
-                    <p class="text-xs text-gray-400 mb-3">Temporarily block yourself from betting.</p>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button onclick="selfExclude(24)" class="chip">24 hours</button>
-                        <button onclick="selfExclude(168)" class="chip">7 days</button>
-                        <button onclick="selfExclude(720)" class="chip">30 days</button>
-                        <button onclick="selfExclude(8760)" class="chip">1 year</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- KYC / Email Verification -->
-    <div id="kyc-modal" class="modal-overlay hidden">
-        <div class="modal-card max-w-md">
-            <button onclick="closeModal('kyc-modal')" class="modal-close">&times;</button>
-            <div class="modal-icon">
-                <i class="fa-solid fa-envelope"></i>
-            </div>
-            <h2 class="modal-title">Verify Email</h2>
-            <p class="modal-subtitle">Required for withdrawals</p>
-
-            <div class="space-y-3 mt-5" id="kyc-step-1">
-                <div>
-                    <label class="input-label">Email Address</label>
-                    <input id="kyc-email" type="email" placeholder="you@example.com" class="input-field">
-                </div>
-                <button onclick="sendOTP()" class="btn-primary w-full">
-                    <i class="fa-solid fa-paper-plane"></i> Send Code
-                </button>
-            </div>
-
-            <div class="space-y-3 mt-5 hidden" id="kyc-step-2">
-                <div>
-                    <label class="input-label">Enter 6-digit Code</label>
-                    <input id="kyc-code" type="text" maxlength="6" placeholder="123456"
-                           class="input-field text-center font-mono text-xl tracking-widest">
-                </div>
-                <button onclick="verifyOTP()" class="btn-primary w-full">Verify</button>
-                <button onclick="sendOTP()" class="btn-ghost w-full text-xs">Resend Code</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Support -->
-    <div id="support-modal" class="modal-overlay hidden">
-        <div class="modal-card max-w-md">
-            <button onclick="closeModal('support-modal')" class="modal-close">&times;</button>
-            <div class="modal-icon">
+            <div class="shell-trust-card">
                 <i class="fa-solid fa-headset"></i>
-            </div>
-            <h2 class="modal-title">Contact Support</h2>
-            <p class="modal-subtitle">We respond within 24 hours</p>
-
-            <div class="space-y-3 mt-5">
-                <div>
-                    <label class="input-label">Category</label>
-                    <select id="support-category" class="input-field">
-                        <option value="deposit">Deposit issue</option>
-                        <option value="withdrawal">Withdrawal issue</option>
-                        <option value="game">Game issue</option>
-                        <option value="account">Account issue</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="input-label">Subject</label>
-                    <input id="support-subject" type="text" maxlength="100" class="input-field">
-                </div>
-                <div>
-                    <label class="input-label">Message</label>
-                    <textarea id="support-message" rows="4" maxlength="2000"
-                              class="input-field" style="resize:none;"></textarea>
-                </div>
-                <button onclick="submitTicket()" class="btn-primary w-full">
-                    <i class="fa-solid fa-paper-plane"></i> Submit Ticket
-                </button>
+                <h4>24/7 Support</h4>
+                <p>We're always here to help</p>
             </div>
         </div>
+    </section>
+</main>
+
+<!-- ============================================ -->
+<!-- FOOTER -->
+<!-- ============================================ -->
+<footer class="shell-footer">
+    <div class="shell-footer-inner">
+        <div class="shell-footer-col">
+            <h4>BetNova</h4>
+            <p>Kenya's fastest growing crash gaming platform. Provably fair. Instant M-Pesa.</p>
+            <p class="shell-footer-license">Licensed by BCLB · License #BCLB/2026/XXXX</p>
+        </div>
+        <div class="shell-footer-col">
+            <h4>Games</h4>
+            <a href="/aviator">Aviator</a>
+            <a href="/crash">Crash</a>
+            <a href="#">Casino</a>
+            <a href="#">Virtuals</a>
+        </div>
+        <div class="shell-footer-col">
+            <h4>Support</h4>
+            <a href="#">Help Center</a>
+            <a href="#">Contact Us</a>
+            <a href="#">FAQs</a>
+            <a href="#">Live Chat</a>
+        </div>
+        <div class="shell-footer-col">
+            <h4>Legal</h4>
+            <a href="#">Terms of Service</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Responsible Gambling</a>
+            <a href="#">Cookie Policy</a>
+        </div>
     </div>
+    <div class="shell-footer-bottom">
+        <p>© 2026 BetNova Gaming Ltd. All rights reserved.</p>
+        <p class="shell-footer-18">
+            <i class="fa-solid fa-ban"></i> 18+ · Play Responsibly
+        </p>
+    </div>
+</footer>
 
-    <!-- Toast -->
-    <div id="toast" class="toast hidden"></div>
+<!-- ============================================ -->
+<!-- MOBILE BOTTOM NAV -->
+<!-- ============================================ -->
+<nav class="shell-bottom-nav">
+    <a href="/" class="shell-bottom-item active">
+        <i class="fa-solid fa-house"></i>
+        <span>Home</span>
+    </a>
+    <a href="/aviator" class="shell-bottom-item">
+        <i class="fa-solid fa-plane-up"></i>
+        <span>Aviator</span>
+    </a>
+    <a href="/crash" class="shell-bottom-item">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Crash</span>
+    </a>
+    <a href="#" class="shell-bottom-item" onclick="openModal('history-modal'); return false;">
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <span>My Bets</span>
+    </a>
+    <a href="#" class="shell-bottom-item" onclick="toggleUserMenu(); return false;">
+        <i class="fa-solid fa-user"></i>
+        <span>Profile</span>
+    </a>
+</nav>
 
-    <script src="app.js"></script>
+<!-- ============================================ -->
+<!-- MODALS (shared with all pages) -->
+<!-- ============================================ -->
+<div id="signin-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('signin-modal')">&times;</button>
+        <h3>Welcome Back</h3>
+        <p>Sign in to continue</p>
+        <form onsubmit="handleAuth(event, 'signin')">
+            <input id="signin-user" type="text" placeholder="Username" required class="shell-input">
+            <input id="signin-pass" type="password" placeholder="Password" required class="shell-input">
+            <button type="submit" class="shell-btn shell-btn-green shell-btn-full">Sign In</button>
+        </form>
+        <p class="shell-modal-footer">
+            No account? <a href="#" onclick="closeModal('signin-modal'); openModal('signup-modal'); return false;">Create one</a>
+        </p>
+    </div>
+</div>
+
+<div id="signup-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('signup-modal')">&times;</button>
+        <h3>Create Account</h3>
+        <p>Join thousands of players</p>
+        <form onsubmit="handleAuth(event, 'signup')">
+            <input id="signup-user" type="text" placeholder="Username (min 3 chars)" required minlength="3" class="shell-input">
+            <input id="signup-pass" type="password" placeholder="Password (min 4 chars)" required minlength="4" class="shell-input">
+            <label class="shell-checkbox">
+                <input type="checkbox" required>
+                <span>I am 18+ and accept the Terms of Service</span>
+            </label>
+            <button type="submit" class="shell-btn shell-btn-green shell-btn-full">Create Account</button>
+        </form>
+    </div>
+</div>
+
+<div id="deposit-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('deposit-modal')">&times;</button>
+        <h3>Deposit Funds</h3>
+        <p>Instant M-Pesa STK Push</p>
+        <input type="number" id="deposit-amount" value="100" min="10" class="shell-input">
+        <input type="tel" id="deposit-phone" placeholder="0712345678" class="shell-input">
+        <button onclick="handleDeposit()" class="shell-btn shell-btn-green shell-btn-full">Send M-Pesa Request</button>
+    </div>
+</div>
+
+<div id="withdraw-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('withdraw-modal')">&times;</button>
+        <h3>Withdraw Funds</h3>
+        <p>Sent to M-Pesa within minutes</p>
+        <input type="number" id="withdraw-amount" value="100" min="50" class="shell-input">
+        <input type="tel" id="withdraw-phone" placeholder="0712345678" class="shell-input">
+        <button onclick="handleWithdraw()" class="shell-btn shell-btn-green shell-btn-full">Withdraw to M-Pesa</button>
+    </div>
+</div>
+
+<div id="history-modal" class="shell-modal hidden">
+    <div class="shell-modal-card shell-modal-wide">
+        <button class="shell-modal-close" onclick="closeModal('history-modal')">&times;</button>
+        <h3>My Bets</h3>
+        <div id="history-list" class="shell-history-list">Loading...</div>
+    </div>
+</div>
+
+<div id="responsible-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('responsible-modal')">&times;</button>
+        <h3>Responsible Gambling</h3>
+        <p>Set your limits</p>
+        <input type="number" id="limit-deposit" placeholder="Daily deposit limit (KES)" class="shell-input">
+        <input type="number" id="limit-wager" placeholder="Daily wager limit (KES)" class="shell-input">
+        <button onclick="saveLimits()" class="shell-btn shell-btn-green shell-btn-full">Save Limits</button>
+    </div>
+</div>
+
+<div id="kyc-modal" class="shell-modal hidden">
+    <div class="shell-modal-card">
+        <button class="shell-modal-close" onclick="closeModal('kyc-modal')">&times;</button>
+        <h3>Verify Email</h3>
+        <p>Required for withdrawals</p>
+        <div id="kyc-step-1">
+            <input type="email" id="kyc-email" placeholder="you@example.com" class="shell-input">
+            <button onclick="sendOTP()" class="shell-btn shell-btn-green shell-btn-full">Send Code</button>
+        </div>
+        <div id="kyc-step-2" class="hidden">
+            <input type="text" id="kyc-code" maxlength="6" placeholder="123456" class="shell-input shell-input-code">
+            <button onclick="verifyOTP()" class="shell-btn shell-btn-green shell-btn-full">Verify</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="shell-toast hidden"></div>
+
+<script src="shell.js"></script>
 </body>
 </html>
