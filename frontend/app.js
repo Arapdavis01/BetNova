@@ -1,6 +1,6 @@
 // ============================================
 // BetNova — Frontend Application
-// Complete: Phase 1 + 2 + 3
+// Complete: Phase 1 + 2 + 3 (Email OTP)
 // ============================================
 
 // ---------- API Base Detection ----------
@@ -773,50 +773,105 @@ socket.on('chat_online', (count) => {
 });
 
 // ============================================
-// KYC (OTP)
+// KYC — EMAIL OTP
 // ============================================
 
 async function sendOTP() {
     if (!currentUser) return showToast('Sign in first', 'error');
-    const phone = document.getElementById('kyc-phone').value.trim();
-    if (!phone) return showToast('Enter your phone number', 'error');
+
+    const emailEl = document.getElementById('kyc-email');
+    const email = emailEl ? emailEl.value.trim() : '';
+
+    if (!email) return showToast('Enter your email address', 'error');
+
+    // Basic client-side validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        return showToast('Please enter a valid email address', 'error');
+    }
+
+    // Disable button during request
+    const btn = event && event.target ? event.target : null;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Sending...';
+    }
 
     try {
         const res = await fetch(`${API_BASE}/api/kyc/send-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUser.userId, phone })
+            body: JSON.stringify({ userId: currentUser.userId, email })
         });
         const data = await res.json();
-        if (!res.ok) return showToast(data.error || 'Failed to send OTP', 'error');
 
-        showToast('OTP sent. Check your SMS.', 'success');
+        if (!res.ok) {
+            showToast(data.error || 'Failed to send verification code', 'error');
+            return;
+        }
+
+        showToast('Code sent. Check your email inbox.', 'success', 5000);
+
+        // Advance to step 2
         document.getElementById('kyc-step-1').classList.add('hidden');
         document.getElementById('kyc-step-2').classList.remove('hidden');
     } catch (err) {
-        showToast('Network error', 'error');
+        console.error('Send OTP error:', err);
+        showToast('Network error. Try again.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code';
+        }
     }
 }
 
 async function verifyOTP() {
     if (!currentUser) return;
-    const phone = document.getElementById('kyc-phone').value.trim();
+
+    const email = document.getElementById('kyc-email').value.trim();
     const code = document.getElementById('kyc-code').value.trim();
-    if (!code || code.length !== 6) return showToast('Enter the 6-digit code', 'error');
+
+    if (!code || code.length !== 6) {
+        return showToast('Enter the 6-digit code from your email', 'error');
+    }
+
+    const btn = event && event.target ? event.target : null;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Verifying...';
+    }
 
     try {
         const res = await fetch(`${API_BASE}/api/kyc/verify-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUser.userId, phone, code })
+            body: JSON.stringify({ userId: currentUser.userId, email, code })
         });
         const data = await res.json();
-        if (!res.ok) return showToast(data.error || 'Invalid code', 'error');
 
-        showToast('Phone verified!', 'success');
+        if (!res.ok) {
+            showToast(data.error || 'Invalid verification code', 'error');
+            return;
+        }
+
+        showToast('Email verified successfully!', 'success');
         closeModal('kyc-modal');
+
+        // Reset modal state for future opens
+        setTimeout(() => {
+            document.getElementById('kyc-step-1').classList.remove('hidden');
+            document.getElementById('kyc-step-2').classList.add('hidden');
+            const codeEl = document.getElementById('kyc-code');
+            if (codeEl) codeEl.value = '';
+        }, 500);
     } catch (err) {
-        showToast('Network error', 'error');
+        console.error('Verify OTP error:', err);
+        showToast('Network error. Try again.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Verify';
+        }
     }
 }
 
