@@ -70,7 +70,7 @@
                             <i class="fa-solid fa-shield-halved"></i> Responsible Gambling
                         </button>
                         <button onclick="openModal('kyc-modal')" class="user-menu-item">
-                            <i class="fa-solid fa-mobile-screen"></i> Verify Phone
+                            <i class="fa-solid fa-envelope"></i> Verify Email
                         </button>
                         <button onclick="openModal('support-modal')" class="user-menu-item">
                             <i class="fa-solid fa-headset"></i> Contact Support
@@ -526,32 +526,34 @@
         </div>
     </div>
 
-    <!-- KYC / Phone Verification -->
+    <!-- KYC / Email Verification -->
     <div id="kyc-modal" class="modal-overlay hidden">
         <div class="modal-card max-w-md">
             <button onclick="closeModal('kyc-modal')" class="modal-close">&times;</button>
             <div class="modal-icon">
-                <i class="fa-solid fa-mobile-screen"></i>
+                <i class="fa-solid fa-envelope"></i>
             </div>
-            <h2 class="modal-title">Verify Phone</h2>
+            <h2 class="modal-title">Verify Email</h2>
             <p class="modal-subtitle">Required for withdrawals</p>
 
             <div class="space-y-3 mt-5" id="kyc-step-1">
                 <div>
-                    <label class="input-label">M-Pesa Phone Number</label>
-                    <input id="kyc-phone" type="tel" placeholder="0712345678" class="input-field">
+                    <label class="input-label">Email Address</label>
+                    <input id="kyc-email" type="email" placeholder="you@example.com" class="input-field">
                 </div>
-                <button onclick="sendOTP()" class="btn-primary w-full">Send OTP</button>
+                <button onclick="sendOTP()" class="btn-primary w-full">
+                    <i class="fa-solid fa-paper-plane"></i> Send Code
+                </button>
             </div>
 
             <div class="space-y-3 mt-5 hidden" id="kyc-step-2">
                 <div>
-                    <label class="input-label">Enter 6-digit OTP</label>
+                    <label class="input-label">Enter 6-digit Code</label>
                     <input id="kyc-code" type="text" maxlength="6" placeholder="123456"
                            class="input-field text-center font-mono text-xl tracking-widest">
                 </div>
                 <button onclick="verifyOTP()" class="btn-primary w-full">Verify</button>
-                <button onclick="sendOTP()" class="btn-ghost w-full text-xs">Resend OTP</button>
+                <button onclick="sendOTP()" class="btn-ghost w-full text-xs">Resend Code</button>
             </div>
         </div>
     </div>
