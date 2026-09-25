@@ -1,0 +1,30 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: betnova-backend
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false          # You'll paste this in the dashboard
+      - key: CLIENT_URL
+        value: https://betnova-frontend.onrender.com
+
+  # Frontend Static Site
+  - type: web
+    name: betnova-frontend
+    runtime: static
+    branch: main
+    buildCommand: ""         # No build step — pure HTML/JS/CSS
+    staticPublishPath: ./frontend
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
