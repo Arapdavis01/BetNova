@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sports Betting — BetNova</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="sports.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ============================================ -->
+<!-- HEADER -->
+<!-- ============================================ -->
+<header class="spo-header">
+    <div class="spo-header-inner">
+        <div class="spo-header-left">
+            <a href="/" class="spo-back">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span class="spo-logo">
+                    <span class="spo-logo-red">Bet</span><span class="spo-logo-white">Nova</span>
+                </span>
+            </a>
+            <nav class="spo-topnav">
+                <a href="/" class="spo-nav-link">Home</a>
+                <a href="/sports" class="spo-nav-link active">Sports</a>
+                <a href="/aviator" class="spo-nav-link">Aviator</a>
+                <a href="/crash" class="spo-nav-link">Crash</a>
+            </nav>
+        </div>
+
+        <div class="spo-header-right">
+            <div class="spo-balance-chip">
+                <i class="fa-solid fa-wallet"></i>
+                <span id="balance-display">0.00</span>
+                <span class="spo-currency">KES</span>
+            </div>
+            <button class="spo-icon-btn" onclick="location.href='/'">
+                <i class="fa-solid fa-user"></i>
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- ============================================ -->
+<!-- MAIN LAYOUT -->
+<!-- ============================================ -->
+<main class="spo-layout">
+
+    <!-- LEFT: SPORT TABS (desktop) -->
+    <aside class="spo-sports-sidebar">
+        <h3>Sports</h3>
+        <div id="sports-list" class="spo-sports-list">
+            <div class="spo-loading">Loading sports...</div>
+        </div>
+    </aside>
+
+    <!-- CENTER: MATCHES -->
+    <section class="spo-matches">
+        <div class="spo-matches-header">
+            <h2 id="matches-title">Upcoming Matches</h2>
+            <div class="spo-filter-tabs" id="sport-filters">
+                <!-- filled dynamically -->
+            </div>
+        </div>
+
+        <div id="matches-list" class="spo-matches-list">
+            <div class="spo-loading">Loading matches...</div>
+        </div>
+    </section>
+
+    <!-- RIGHT: BET SLIP -->
+    <aside class="spo-betslip" id="betslip">
+        <div class="spo-betslip-header">
+            <h3>
+                <i class="fa-solid fa-receipt"></i> Bet Slip
+                <span class="spo-betslip-count" id="betslip-count">0</span>
+            </h3>
+            <button class="spo-betslip-clear" onclick="clearBetSlip()">Clear</button>
+        </div>
+
+        <div class="spo-betslip-body" id="betslip-body">
+            <div class="spo-betslip-empty">
+                <i class="fa-solid fa-ticket"></i>
+                <p>Click on odds to add selections</p>
+            </div>
+        </div>
+
+        <div class="spo-betslip-footer" id="betslip-footer" style="display:none;">
+            <div class="spo-betslip-summary">
+                <span>Total Odds</span>
+                <strong id="betslip-total-odds">1.00</strong>
+            </div>
+            <div class="spo-betslip-summary">
+                <span>Potential Payout</span>
+                <strong id="betslip-payout" class="spo-green">KES 0.00</strong>
+            </div>
+            <div class="spo-betslip-stake">
+                <label>Stake</label>
+                <div class="spo-stake-input-wrap">
+                    <input type="number" id="betslip-stake" value="100" min="10" step="10" oninput="recalcBetSlip()">
+                    <span>KES</span>
+                </div>
+            </div>
+            <div class="spo-quick-chips">
+                <button onclick="setStake(100)">100</button>
+                <button onclick="setStake(250)">250</button>
+                <button onclick="setStake(500)">500</button>
+                <button onclick="setStake(1000)">1000</button>
+            </div>
+            <button class="spo-place-bet-btn" id="place-bet-btn" onclick="placeBet()">
+                Place Bet
+            </button>
+        </div>
+    </aside>
+</main>
+
+<!-- Mobile bottom nav -->
+<nav class="spo-bottom-nav">
+    <a href="/" class="spo-bottom-item">
+        <i class="fa-solid fa-house"></i>
+        <span>Home</span>
+    </a>
+    <a href="/sports" class="spo-bottom-item active">
+        <i class="fa-solid fa-futbol"></i>
+        <span>Sports</span>
+    </a>
+    <a href="/aviator" class="spo-bottom-item">
+        <i class="fa-solid fa-plane-up"></i>
+        <span>Aviator</span>
+    </a>
+    <a href="#" class="spo-bottom-item" onclick="openMyBets(); return false;">
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <span>My Bets</span>
+    </a>
+</nav>
+
+<!-- My Bets Modal -->
+<div id="mybets-modal" class="spo-modal hidden">
+    <div class="spo-modal-card spo-modal-wide">
+        <button class="spo-modal-close" onclick="closeMyBets()">&times;</button>
+        <h3>My Sports Bets</h3>
+        <div id="mybets-list" class="spo-mybets-list">Loading...</div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="spo-toast hidden"></div>
+
+<script src="sports.js"></script>
+</body>
+</html>
