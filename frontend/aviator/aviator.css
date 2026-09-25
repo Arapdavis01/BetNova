@@ -1137,3 +1137,70 @@ html, body {
     .avi-jackpot-text { font-size: 10px; }
     .avi-jackpot-text strong { font-size: 10px; }
 }
+/* ============================================
+   Header layout with left group
+   ============================================ */
+.avi-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Quick game nav */
+.avi-quick-nav {
+    display: flex;
+    gap: 4px;
+}
+.avi-quick-nav a {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: all 0.15s;
+    background: rgba(255,255,255,0.02);
+}
+.avi-quick-nav a:hover {
+    color: var(--green);
+    background: rgba(0, 200, 83, 0.08);
+}
+.avi-quick-nav a.active {
+    color: var(--green);
+    background: rgba(0, 200, 83, 0.12);
+}
+.avi-quick-nav a i { font-size: 13px; }
+
+/* Balance chip update */
+.avi-balance-chip i {
+    color: var(--green);
+    font-size: 11px;
+}
+
+/* Modal labels */
+.avi-modal-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-mute);
+    margin-bottom: 4px;
+    margin-top: 6px;
+}
+
+/* ============================================
+   Mobile adjustments for new header
+   ============================================ */
+@media (max-width: 900px) {
+    .avi-header-left { gap: 8px; }
+    .avi-quick-nav { display: none; }
+    .avi-user-toggle { display: inline-flex; }
+}
+
+@media (max-width: 640px) {
+    .avi-balance-chip { font-size: 11px; padding: 4px 8px; }
+    .avi-balance-chip i { display: none; }
+}
