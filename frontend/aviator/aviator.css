@@ -1,6 +1,6 @@
 /* ============================================
    BetNova Aviator — Professional Stylesheet
-   Full rewrite: header, bets, canvas, bet panels, chat, modals
+   Matches: moving canvas, dual bet panels, chat drawer
    ============================================ */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -21,8 +21,11 @@
     --red: #ef4444;
     --red-hi: #f87171;
     --red-glow: rgba(239, 68, 68, 0.5);
+    --crimson: #d91d36;
+    --crimson-glow: rgba(217, 29, 54, 0.55);
     --yellow: #fbbf24;
     --purple: #a855f7;
+    --amber: #f59e0b;
 }
 
 html, body {
@@ -37,7 +40,9 @@ html, body {
 
 button { font-family: inherit; }
 
-/* Global scrollbars */
+/* ============================================
+   GLOBAL SCROLLBARS
+   ============================================ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -524,7 +529,9 @@ button { font-family: inherit; }
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.5);
+    box-shadow:
+        inset 0 0 80px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(217, 29, 54, 0.08);
 }
 
 .avi-status-badge {
@@ -543,6 +550,7 @@ button { font-family: inherit; }
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-weight: 700;
+    pointer-events: none;
 }
 
 .avi-multiplier {
@@ -555,16 +563,20 @@ button { font-family: inherit; }
     font-size: 96px;
     letter-spacing: -0.03em;
     color: white;
-    text-shadow: 0 0 60px rgba(255, 255, 255, 0.5);
+    text-shadow:
+        0 0 30px rgba(255, 255, 255, 0.4),
+        0 0 70px rgba(255, 45, 85, 0.35);
     z-index: 3;
     pointer-events: none;
-    transition: color 0.15s;
+    transition: color 0.15s, text-shadow 0.3s;
     line-height: 1;
 }
-.avi-multiplier span { font-size: 48px; }
+.avi-multiplier span { font-size: 48px; opacity: 0.85; }
 .avi-multiplier.crashed {
     color: var(--red);
-    text-shadow: 0 0 60px var(--red-glow);
+    text-shadow:
+        0 0 40px var(--red-glow),
+        0 0 80px rgba(239, 68, 68, 0.4);
     animation: shake 0.4s;
 }
 @keyframes shake {
@@ -804,7 +816,7 @@ button { font-family: inherit; }
 }
 
 .avi-action-cashout {
-    background: linear-gradient(135deg, var(--yellow), #d97706);
+    background: linear-gradient(135deg, var(--yellow), var(--amber));
     color: #1a1a1a;
     box-shadow: 0 4px 18px rgba(251, 191, 36, 0.4);
     animation: pulseYellow 1.5s infinite;
