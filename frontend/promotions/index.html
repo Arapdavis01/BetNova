@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Promotions & Jackpots — BetNova</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="promotions.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="promo-header">
+    <div class="promo-header-inner">
+        <a href="/" class="promo-back">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span class="promo-logo">
+                <span class="promo-logo-red">Bet</span><span class="promo-logo-white">Nova</span>
+                <span class="promo-logo-sub">Promotions</span>
+            </span>
+        </a>
+        <div class="promo-header-right">
+            <div class="promo-balance-chip">
+                <i class="fa-solid fa-wallet"></i>
+                <span id="balance-display">0.00</span>
+                <span class="promo-currency">KES</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="promo-layout">
+
+    <!-- Hero -->
+    <section class="promo-hero">
+        <h1>Promotions & <span class="promo-hero-green">Jackpots</span></h1>
+        <p>Daily draws, weekly megas, and exclusive bonus codes — all in one place.</p>
+    </section>
+
+    <!-- Jackpots -->
+    <section class="promo-section">
+        <div class="promo-section-header">
+            <h2><i class="fa-solid fa-trophy"></i> Live Jackpots</h2>
+            <span class="promo-live-indicator">
+                <span></span> Live
+            </span>
+        </div>
+
+        <div id="jackpots-list" class="promo-jackpots-grid">
+            <div class="promo-loading">Loading jackpots...</div>
+        </div>
+    </section>
+
+    <!-- Promo Code Redemption -->
+    <section class="promo-section">
+        <div class="promo-section-header">
+            <h2><i class="fa-solid fa-gift"></i> Redeem a Bonus Code</h2>
+        </div>
+
+        <div class="promo-redeem-card">
+            <div class="promo-redeem-input-wrap">
+                <input type="text" id="promo-code-input" placeholder="Enter promo code (e.g., WELCOME100)"
+                       maxlength="20" autocomplete="off">
+                <button onclick="redeemPromoCode()" id="redeem-btn">
+                    <i class="fa-solid fa-gift"></i> Redeem
+                </button>
+            </div>
+            <div id="redeem-result" class="promo-redeem-result hidden"></div>
+        </div>
+    </section>
+
+    <!-- Active Promotions -->
+    <section class="promo-section">
+        <div class="promo-section-header">
+            <h2><i class="fa-solid fa-fire"></i> Active Promotions</h2>
+        </div>
+
+        <div id="active-promotions" class="promo-grid">
+            <div class="promo-loading">Loading promotions...</div>
+        </div>
+    </section>
+
+    <!-- My Redemptions -->
+    <section class="promo-section">
+        <div class="promo-section-header">
+            <h2><i class="fa-solid fa-clock-rotate-left"></i> My Redemptions</h2>
+        </div>
+
+        <div id="my-redemptions" class="promo-redemptions-list">
+            <div class="promo-loading">Loading...</div>
+        </div>
+    </section>
+</main>
+
+<!-- Toast -->
+<div id="toast" class="promo-toast hidden"></div>
+
+<script src="promotions.js"></script>
+</body>
+</html>
